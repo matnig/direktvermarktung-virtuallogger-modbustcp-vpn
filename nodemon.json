@@ -1,0 +1,5 @@
+{
+  "watch": ["src", "public"],
+  "ignore": ["src/persistence/data"],
+  "ext": "js,html"
+}

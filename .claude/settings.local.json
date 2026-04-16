@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node src/app/main.js)",
+      "Bash(curl -s http://localhost:3000/api/health)",
+      "Bash(node -e \"process.stdin|require\\('stream'\\).Writable\\({write\\(d\\){process.stdout.write\\(JSON.stringify\\(JSON.parse\\(d\\),null,2\\)\\)}}\\)\")",
+      "Bash(npm install *)",
+      "Bash(curl -s http://localhost:3000/api/meta)",
+      "Bash(curl -s http://localhost:3000/api/export)",
+      "Bash(node --test)",
+      "Bash(curl -s http://localhost:3000/api/runtime/status)",
+      "Bash(node -e ' *)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\" http://localhost:3000/)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\" http://localhost:3000/public_index.html)",
+      "Bash(npm --version)",
+      "Read(//private/tmp/**)",
+      "Bash(rm -rf mb-test)",
+      "Bash(mkdir mb-test *)",
+      "Bash(cp -r /Users/matteusniggemann/Downloads/modbus-bridge/src mb-test/)",
+      "Bash(cp /Users/matteusniggemann/Downloads/modbus-bridge/package.json mb-test/)",
+      "Bash(node -e \"require\\('./nodemon.json'\\); console.log\\('nodemon.json OK'\\)\")",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\('scripts:', JSON.stringify\\(p.scripts, null, 2\\)\\)\")",
+      "Bash(npm test *)",
+      "Bash(node -e \" let d='';process.stdin.on\\('data',c=>d+=c\\); process.stdin.on\\('end',\\(\\)=>{ try { const cfg = JSON.parse\\(d\\); console.log\\('watch:', cfg.watch\\); console.log\\('ignore:', cfg.ignore\\); console.log\\('ext:', cfg.ext\\); } catch { console.log\\('\\(nodemon --print-config not supported, config file is valid JSON — OK\\)'\\); } }\\)\")",
+      "Bash(chmod +x /Users/matteusniggemann/Downloads/modbus-bridge/install.sh)",
+      "Bash(bash -n /Users/matteusniggemann/Downloads/modbus-bridge/install.sh)",
+      "Bash(rm -rf mb-install-test)",
+      "Bash(cp /Users/matteusniggemann/Downloads/modbus-bridge/install.sh /tmp/test_install.sh)",
+      "Bash(sed -i '' 's|REPO_URL=\"https://github.com/OWNER/modbus-bridge.git\"|REPO_URL=\"file:///Users/matteusniggemann/Downloads/modbus-bridge\"|' /tmp/test_install.sh)",
+      "Bash(sed -i '' 's|INSTALL_DIR=\"${MODBUS_BRIDGE_DIR:-$HOME/modbus-bridge}\"|INSTALL_DIR=\"${MODBUS_BRIDGE_DIR:-/tmp/mb-install-test}\"|' /tmp/test_install.sh)",
+      "Bash(sed -i '' 's|exec npm start|echo \"  [TEST] Setup complete — skipping start\"; exit 0|' /tmp/test_install.sh)",
+      "Bash(cp install.sh /tmp/test_install2.sh)",
+      "Bash(python3 -c ' *)",
+      "Bash(bash /tmp/test_install2.sh)",
+      "Bash(rm -rf /tmp/mb-install-test)",
+      "Bash(bash /tmp/test_install3.sh)",
+      "Bash(grep -n '\\\\$[A-Z_]*[^\\\\x00-\\\\x7F]' /Users/matteusniggemann/Downloads/modbus-bridge/install.sh)",
+      "Bash(bash /tmp/test_install4.sh)",
+      "Bash(bash /tmp/test_final.sh)"
+    ]
+  }
+}

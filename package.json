@@ -1,0 +1,24 @@
+{
+  "name": "modbus-bridge",
+  "version": "0.2.0",
+  "description": "Configurable Modbus bridge / energy integration backend prototype with web UI foundation.",
+  "main": "src/app/main.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18.18.0"
+  },
+  "scripts": {
+    "start": "node src/app/main.js",
+    "dev": "nodemon src/app/main.js",
+    "test": "node --test",
+    "test:watch": "node --test --watch src/services/runtimeService.test.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "modbus-serial": "^8.0.23",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}

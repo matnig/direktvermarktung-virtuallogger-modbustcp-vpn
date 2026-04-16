@@ -1,0 +1,11 @@
+node_modules/
+
+# Runtime data files are auto-created on first start
+src/persistence/data/*.json
+!src/persistence/data/.gitkeep
+
+# Environment overrides
+.env
+
+# OS
+.DS_Store

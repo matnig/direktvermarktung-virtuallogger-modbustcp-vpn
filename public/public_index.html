@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Modbus Bridge</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 24px; max-width: 1400px; }
+      h1, h2, h3 { margin-bottom: 8px; }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+      .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; }
+      form, .panel { border: 1px solid #ccc; border-radius: 8px; padding: 16px; }
+      label { display: block; margin-top: 10px; font-size: 14px; }
+      input, select, textarea, button { width: 100%; padding: 8px; margin-top: 4px; box-sizing: border-box; }
+      button { cursor: pointer; }
+      ul { padding-left: 18px; }
+      .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      .hint { color: #666; font-size: 13px; }
+      pre { background: #111; color: #eee; padding: 12px; border-radius: 8px; overflow: auto; max-height: 400px; }
+      .toolbar { display: flex; gap: 12px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
+      .toolbar button { width: auto; padding: 8px 16px; }
+      .toolbar label { margin: 0; font-size: 14px; }
+
+      /* runtime panel */
+      .rt-header { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
+      .rt-header h2 { margin: 0; }
+      .badge { font-size: 13px; font-weight: bold; padding: 3px 10px; border-radius: 12px; }
+      .badge.running { background: #d4edda; color: #155724; }
+      .badge.stopped { background: #f8d7da; color: #721c24; }
+      .rt-meta { font-size: 13px; color: #555; margin-left: auto; }
+      .rt-source { border: 1px solid #ddd; border-radius: 6px; margin-bottom: 12px; overflow: hidden; }
+      .rt-source-header { background: #f8f9fa; padding: 10px 14px; display: flex; gap: 20px; flex-wrap: wrap; align-items: baseline; border-bottom: 1px solid #ddd; }
+      .rt-source-header strong { font-size: 15px; }
+      .rt-source-header .hint { font-size: 12px; }
+      .rt-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      .rt-table th { background: #f1f3f5; padding: 6px 10px; text-align: left; font-weight: 600; font-size: 12px; color: #444; border-bottom: 1px solid #ddd; }
+      .rt-table td { padding: 6px 10px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+      .rt-table tr:last-child td { border-bottom: none; }
+      .rt-table tr.row-err td { background: #fff8f8; }
+      .val-main { font-weight: 600; font-size: 14px; }
+      .ok { color: #28a745; }
+      .err { color: #dc3545; }
+      .no-data { padding: 16px; color: #888; font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <h1>Modbus Bridge</h1>
+    <p class="hint">Runtime polling · Live values · Profile application · Export / Import</p>
+
+    <div class="toolbar">
+      <button id="poll-once">Poll once</button>
+      <button id="refresh-runtime-btn">Refresh runtime</button>
+      <button id="export-btn">Export config</button>
+      <label style="width:auto;margin:0;">
+        <span style="padding:8px 16px;border:1px solid #ccc;border-radius:4px;cursor:pointer;display:inline-block;">Import config</span>
+        <input type="file" id="import-file" accept=".json" style="display:none" />
+      </label>
+      <label style="width:auto;margin:0;display:flex;align-items:center;gap:6px;">
+        <input type="checkbox" id="auto-refresh-toggle" style="width:auto;margin:0;" />
+        Auto-refresh every
+        <select id="auto-refresh-interval" style="width:auto;margin:0;padding:6px 8px;">
+          <option value="2000">2 s</option>
+          <option value="5000" selected>5 s</option>
+          <option value="10000">10 s</option>
+          <option value="30000">30 s</option>
+        </select>
+      </label>
+    </div>
+
+    <!-- ── Runtime live view ───────────────────────────────────────── -->
+    <div class="panel" style="margin-bottom:24px;">
+      <div class="rt-header">
+        <h2>Runtime</h2>
+        <span id="runtime-badge" class="badge stopped">○ stopped</span>
+        <span id="runtime-cycle" class="hint"></span>
+        <span id="runtime-last-updated" class="rt-meta hint"></span>
+      </div>
+      <div id="runtime-sources"><p class="no-data hint">Loading…</p></div>
+    </div>
+
+    <!-- ── Config forms ────────────────────────────────────────────── -->
+    <div class="grid-3">
+      <form id="source-form">
+        <h2>Create source</h2>
+        <label>Name<input name="name" required /></label>
+        <label>Host/IP<input name="host" required value="192.168.1.10" /></label>
+        <div class="row">
+          <label>Port<input name="port" type="number" required value="502" /></label>
+          <label>Unit ID<input name="unitId" type="number" required value="1" /></label>
+        </div>
+        <label>Polling interval ms<input name="pollingIntervalMs" type="number" required value="5000" /></label>
+        <label>Description<textarea name="description"></textarea></label>
+        <button type="submit">Save source</button>
+      </form>
+
+      <form id="register-form">
+        <h2>Create register</h2>
+        <label>Source<select name="sourceId" id="source-select"></select></label>
+        <label>Name<input name="name" required /></label>
+        <div class="row">
+          <label>Register type<select name="registerType"><option>holding</option><option>input</option><option>coil</option><option>discrete-input</option></select></label>
+          <label>Data type<select name="dataType"><option>uint16</option><option>int16</option><option>uint32</option><option>int32</option><option>float32</option><option>bool</option></select></label>
+        </div>
+        <div class="row">
+          <label>Address<input name="address" type="number" required value="0" /></label>
+          <label>Length<input name="length" type="number" required value="1" /></label>
+        </div>
+        <div class="row">
+          <label>Scale<input name="scale" type="number" step="any" value="1" /></label>
+          <label>Precision<input name="precision" type="number" value="0" /></label>
+        </div>
+        <label>Unit<input name="unit" value="kW" /></label>
+        <label>Description<textarea name="description"></textarea></label>
+        <button type="submit">Save register</button>
+      </form>
+
+      <form id="profile-form">
+        <h2>Create profile</h2>
+        <label>Name<input name="name" required /></label>
+        <label>Provider key<input name="providerKey" required value="generic-energy" /></label>
+        <label>Source defaults JSON<textarea name="sourceDefaults">{
+  "port": 502,
+  "unitId": 1,
+  "pollingIntervalMs": 5000
+}</textarea></label>
+        <label>Register templates JSON<textarea name="registerTemplates">[]</textarea></label>
+        <label>Description<textarea name="description"></textarea></label>
+        <button type="submit">Save profile</button>
+      </form>
+    </div>
+
+    <!-- ── Config lists ────────────────────────────────────────────── -->
+    <div class="grid-3" style="margin-top: 24px;">
+      <div class="panel">
+        <h2>Sources</h2>
+        <ul id="sources"></ul>
+      </div>
+      <div class="panel">
+        <h2>Registers</h2>
+        <ul id="registers"></ul>
+      </div>
+      <div class="panel">
+        <h2>Profiles</h2>
+        <ul id="profiles"></ul>
+      </div>
+    </div>
+
+    <!-- ── Apply profile ──────────────────────────────────────────── -->
+    <div class="panel" style="margin-top: 24px;">
+      <h2>Apply profile to source</h2>
+      <p class="hint">Instantiates all register templates from the selected profile onto the chosen source.</p>
+      <div class="row" style="max-width:600px;">
+        <label>Profile<select id="apply-profile-select"></select></label>
+        <label>Target source<select id="apply-source-select"></select></label>
+      </div>
+      <label style="max-width:300px;margin-top:10px;">
+        <input type="checkbox" id="apply-merge-defaults" style="width:auto;margin-right:6px;" />
+        Merge source defaults (port, unitId, pollingIntervalMs)
+      </label>
+      <br />
+      <button id="apply-profile-btn" style="width:auto;padding:8px 20px;margin-top:12px;">Apply profile</button>
+    </div>
+
+    <!-- ── Debug output ───────────────────────────────────────────── -->
+    <div class="panel" style="margin-top:24px;">
+      <h2>Debug output</h2>
+      <pre id="debug"></pre>
+    </div>
+
+    <script>
+      // ── DOM refs ──────────────────────────────────────────────────
+      const debug            = document.getElementById('debug');
+      const sourceList       = document.getElementById('sources');
+      const registerList     = document.getElementById('registers');
+      const profileList      = document.getElementById('profiles');
+      const sourceSelect     = document.getElementById('source-select');
+      const applyProfileSel  = document.getElementById('apply-profile-select');
+      const applySourceSel   = document.getElementById('apply-source-select');
+      const runtimeSources   = document.getElementById('runtime-sources');
+      const runtimeBadge     = document.getElementById('runtime-badge');
+      const runtimeCycle     = document.getElementById('runtime-cycle');
+      const runtimeUpdated   = document.getElementById('runtime-last-updated');
+
+      // ── Helpers ───────────────────────────────────────────────────
+      function esc(str) {
+        return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      }
+
+      function fmtTime(iso) {
+        if (!iso) return '—';
+        try { return new Date(iso).toLocaleTimeString(); } catch { return iso; }
+      }
+
+      function setDebug(value) {
+        debug.textContent = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+      }
+
+      async function fetchJson(url, options = {}) {
+        const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options });
+        const text = await res.text();
+        const json = text ? JSON.parse(text) : null;
+        if (!res.ok) throw json || { error: 'request_failed' };
+        return json;
+      }
+
+      // ── Runtime rendering ─────────────────────────────────────────
+      function renderRuntime(runtime) {
+        // badge
+        const running = !!runtime.running;
+        runtimeBadge.textContent = running ? '● running' : '○ stopped';
+        runtimeBadge.className   = 'badge ' + (running ? 'running' : 'stopped');
+
+        // cycle timestamps
+        const cycleStart = runtime.cycleStartedAt ? fmtTime(runtime.cycleStartedAt) : null;
+        const cycleEnd   = runtime.cycleFinishedAt ? fmtTime(runtime.cycleFinishedAt) : null;
+        runtimeCycle.textContent = cycleStart
+          ? `Last cycle ${cycleStart}${cycleEnd ? ' → ' + cycleEnd : ''}`
+          : '';
+
+        runtimeUpdated.textContent = 'Updated ' + new Date().toLocaleTimeString();
+
+        const sourceStates = Object.values(runtime.sourceStates || {});
+
+        if (sourceStates.length === 0) {
+          runtimeSources.innerHTML =
+            '<p class="no-data hint">' +
+            (running ? 'No enabled sources. Add a source and reload.' : 'Runtime stopped. Press Poll once or Start.') +
+            '</p>';
+          return;
+        }
+
+        // group register states by sourceId
+        const regsBySource = {};
+        for (const reg of Object.values(runtime.registerStates || {})) {
+          (regsBySource[reg.sourceId] = regsBySource[reg.sourceId] || []).push(reg);
+        }
+
+        runtimeSources.innerHTML = sourceStates.map(src => {
+          const regs = regsBySource[src.sourceId] || [];
+
+          const srcErrHtml = src.lastError
+            ? `<span class="err" title="${esc(src.lastError)}">⚠ ${esc(src.lastError.slice(0, 60))}</span>`
+            : '<span class="ok">ok</span>';
+
+          const headerHtml = `
+            <div class="rt-source-header">
+              <strong>${esc(src.name)}</strong>
+              <span class="hint">${esc(src.host)}:${src.port} · unit&nbsp;${src.unitId} · ${src.pollingIntervalMs}&nbsp;ms</span>
+              <span class="hint">Registers:&nbsp;${src.registerCount ?? regs.length}</span>
+              <span class="hint">Last success:&nbsp;${fmtTime(src.lastSuccessAt)}</span>
+              <span class="hint">Next poll:&nbsp;${fmtTime(src.nextPollAt)}</span>
+              <span class="hint">Status:&nbsp;${srcErrHtml}</span>
+            </div>`;
+
+          if (regs.length === 0) {
+            return `<div class="rt-source">${headerHtml}<p class="no-data hint">No registers configured for this source.</p></div>`;
+          }
+
+          const rows = regs.map(r => {
+            const errHtml = r.error
+              ? `<span class="err" title="${esc(r.error)}">⚠ ${esc(r.error.slice(0, 50))}</span>`
+              : '<span class="ok">—</span>';
+            const valueHtml = r.formattedValue != null
+              ? `<span class="val-main">${esc(String(r.formattedValue))}</span>`
+              : '<span class="hint">—</span>';
+            const scaledHtml = r.scaledValue  != null ? esc(String(r.scaledValue))  : '<span class="hint">—</span>';
+            const rawHtml    = r.rawValue     != null ? esc(String(r.rawValue))     : '<span class="hint">—</span>';
+            return `
+              <tr class="${r.error ? 'row-err' : ''}">
+                <td>${esc(r.name)}</td>
+                <td class="hint">${esc(r.registerType)}</td>
+                <td class="hint">${r.address}</td>
+                <td class="hint">${esc(r.dataType)}${r.unit ? ' / ' + esc(r.unit) : ''}</td>
+                <td>${valueHtml}</td>
+                <td class="hint">${scaledHtml}</td>
+                <td class="hint">${rawHtml}</td>
+                <td class="hint">${fmtTime(r.lastReadAt)}</td>
+                <td>${errHtml}</td>
+              </tr>`;
+          }).join('');
+
+          return `
+            <div class="rt-source">
+              ${headerHtml}
+              <table class="rt-table">
+                <thead>
+                  <tr>
+                    <th>Name</th><th>Type</th><th>Addr</th><th>Data type</th>
+                    <th>Value</th><th>Scaled</th><th>Raw</th><th>Last read</th><th>Error</th>
+                  </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+              </table>
+            </div>`;
+        }).join('');
+      }
+
+      async function refreshRuntime() {
+        try {
+          const runtime = await fetchJson('/api/runtime/status');
+          renderRuntime(runtime);
+          return runtime;
+        } catch (err) {
+          runtimeSources.innerHTML = `<p class="no-data err">Failed to fetch runtime status: ${esc(String(err?.error || err))}</p>`;
+        }
+      }
+
+      // ── Auto-refresh ──────────────────────────────────────────────
+      let autoRefreshHandle = null;
+
+      function applyAutoRefresh() {
+        if (autoRefreshHandle) {
+          clearInterval(autoRefreshHandle);
+          autoRefreshHandle = null;
+        }
+        if (document.getElementById('auto-refresh-toggle').checked) {
+          const ms = Number(document.getElementById('auto-refresh-interval').value) || 5000;
+          autoRefreshHandle = setInterval(refreshRuntime, ms);
+        }
+      }
+
+      document.getElementById('auto-refresh-toggle').addEventListener('change', applyAutoRefresh);
+      document.getElementById('auto-refresh-interval').addEventListener('change', applyAutoRefresh);
+
+      // ── Full config + runtime refresh ─────────────────────────────
+      async function refresh() {
+        const [sources, registers, profiles, runtime] = await Promise.all([
+          fetchJson('/api/sources'),
+          fetchJson('/api/registers'),
+          fetchJson('/api/profiles'),
+          fetchJson('/api/runtime/status'),
+        ]);
+
+        sourceList.innerHTML = sources.map(s =>
+          `<li><strong>${esc(s.name)}</strong> — ${esc(s.host)}:${s.port} (unit ${s.unitId}) <span class="hint">${s.enabled ? '● enabled' : '○ disabled'}</span></li>`
+        ).join('') || '<li class="hint">none</li>';
+
+        registerList.innerHTML = registers.map(r =>
+          `<li><strong>${esc(r.name)}</strong> — ${r.registerType} @ ${r.address} (${r.dataType}${r.unit ? ', ' + esc(r.unit) : ''})</li>`
+        ).join('') || '<li class="hint">none</li>';
+
+        profileList.innerHTML = profiles.map(p =>
+          `<li><strong>${esc(p.name)}</strong> — ${esc(p.providerKey)} <span class="hint">(${(p.registerTemplates || []).length} templates)</span></li>`
+        ).join('') || '<li class="hint">none</li>';
+
+        const srcOptions = sources.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
+        sourceSelect.innerHTML  = srcOptions;
+        applySourceSel.innerHTML = srcOptions || '<option value="">— no sources —</option>';
+        applyProfileSel.innerHTML = profiles.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')
+          || '<option value="">— no profiles —</option>';
+
+        renderRuntime(runtime);
+        setDebug({ sources, registers, profiles, runtime });
+      }
+
+      // ── Event listeners ───────────────────────────────────────────
+      document.getElementById('source-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const p = Object.fromEntries(new FormData(e.target).entries());
+        p.port = Number(p.port); p.unitId = Number(p.unitId); p.pollingIntervalMs = Number(p.pollingIntervalMs);
+        try { await fetchJson('/api/sources', { method: 'POST', body: JSON.stringify(p) }); e.target.reset(); await refresh(); }
+        catch (err) { setDebug(err); }
+      });
+
+      document.getElementById('register-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const p = Object.fromEntries(new FormData(e.target).entries());
+        p.address = Number(p.address); p.length = Number(p.length);
+        p.scale = Number(p.scale); p.precision = Number(p.precision);
+        try { await fetchJson('/api/registers', { method: 'POST', body: JSON.stringify(p) }); e.target.reset(); await refresh(); }
+        catch (err) { setDebug(err); }
+      });
+
+      document.getElementById('profile-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const p = Object.fromEntries(new FormData(e.target).entries());
+        try {
+          p.sourceDefaults = JSON.parse(p.sourceDefaults || '{}');
+          p.registerTemplates = JSON.parse(p.registerTemplates || '[]');
+          await fetchJson('/api/profiles', { method: 'POST', body: JSON.stringify(p) }); e.target.reset(); await refresh();
+        } catch (err) { setDebug(err); }
+      });
+
+      document.getElementById('poll-once').addEventListener('click', async () => {
+        try {
+          const result = await fetchJson('/api/runtime/poll-once', { method: 'POST' });
+          renderRuntime(result);
+          setDebug(result);
+        } catch (err) { setDebug(err); }
+      });
+
+      document.getElementById('refresh-runtime-btn').addEventListener('click', async () => {
+        try {
+          const result = await refreshRuntime();
+          if (result) setDebug(result);
+        } catch (err) { setDebug(err); }
+      });
+
+      document.getElementById('apply-profile-btn').addEventListener('click', async () => {
+        const profileId = applyProfileSel.value;
+        const sourceId  = applySourceSel.value;
+        const merge     = document.getElementById('apply-merge-defaults').checked;
+        if (!profileId || !sourceId) return setDebug('Select a profile and a source first.');
+        try {
+          const result = await fetchJson(`/api/profiles/${profileId}/apply`, {
+            method: 'POST', body: JSON.stringify({ sourceId, mergeSourceDefaults: merge }),
+          });
+          setDebug(result);
+          await refresh();
+        } catch (err) { setDebug(err); }
+      });
+
+      document.getElementById('export-btn').addEventListener('click', async () => {
+        try {
+          const result = await fetchJson('/api/export');
+          const blob = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' });
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = `modbus-bridge-export-${new Date().toISOString().slice(0,10)}.json`;
+          a.click();
+        } catch (err) { setDebug(err); }
+      });
+
+      document.getElementById('import-file').addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        try {
+          const payload = JSON.parse(await file.text());
+          const result  = await fetchJson('/api/export/import', { method: 'POST', body: JSON.stringify(payload) });
+          setDebug(result);
+          await refresh();
+        } catch (err) { setDebug(typeof err === 'object' ? err : { error: String(err) }); }
+        finally { e.target.value = ''; }
+      });
+
+      refresh().catch(setDebug);
+    </script>
+  </body>
+</html>
