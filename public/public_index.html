@@ -25,8 +25,13 @@
       .rt-header { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
       .rt-header h2 { margin: 0; }
       .badge { font-size: 13px; font-weight: bold; padding: 3px 10px; border-radius: 12px; }
-      .badge.running { background: #d4edda; color: #155724; }
-      .badge.stopped { background: #f8d7da; color: #721c24; }
+      .badge.running    { background: #d4edda; color: #155724; }
+      .badge.stopped    { background: #f8d7da; color: #721c24; }
+      .badge.connected  { background: #d4edda; color: #155724; }
+      .badge.connecting { background: #fff3cd; color: #856404; }
+      .badge.disconnected { background: #e2e3e5; color: #383d41; }
+      .badge.disabled   { background: #e2e3e5; color: #6c757d; }
+      .badge.vpn-error  { background: #f8d7da; color: #721c24; }
       .rt-meta { font-size: 13px; color: #555; margin-left: auto; }
       .rt-source { border: 1px solid #ddd; border-radius: 6px; margin-bottom: 12px; overflow: hidden; }
       .rt-source-header { background: #f8f9fa; padding: 10px 14px; display: flex; gap: 20px; flex-wrap: wrap; align-items: baseline; border-bottom: 1px solid #ddd; }
@@ -41,23 +46,33 @@
       .ok { color: #28a745; }
       .err { color: #dc3545; }
       .no-data { padding: 16px; color: #888; font-size: 13px; }
+
+      /* lang switcher */
+      .lang-btn { padding: 4px 10px !important; font-size: 13px !important; border: 1px solid #ccc; background: #fff; }
+      .lang-btn.active { font-weight: bold; background: #e8f0fe; border-color: #4285f4; }
+
+      /* vpn panel */
+      .vpn-hint { font-size: 12px; color: #888; margin-top: 4px; }
+      .btn-connect    { background: #28a745 !important; color: #fff !important; border: none !important; }
+      .btn-disconnect { background: #dc3545 !important; color: #fff !important; border: none !important; }
     </style>
+    <script src="/i18n/translations.js"></script>
   </head>
   <body>
     <h1>Modbus Bridge</h1>
-    <p class="hint">Runtime polling · Live values · Profile application · Export / Import</p>
+    <p class="hint" data-i18n="app.subtitle">Runtime polling · Live values · Profile application · Export / Import</p>
 
     <div class="toolbar">
-      <button id="poll-once">Poll once</button>
-      <button id="refresh-runtime-btn">Refresh runtime</button>
-      <button id="export-btn">Export config</button>
+      <button id="poll-once" data-i18n="toolbar.pollOnce">Poll once</button>
+      <button id="refresh-runtime-btn" data-i18n="toolbar.refreshRuntime">Refresh runtime</button>
+      <button id="export-btn" data-i18n="toolbar.exportConfig">Export config</button>
       <label style="width:auto;margin:0;">
-        <span style="padding:8px 16px;border:1px solid #ccc;border-radius:4px;cursor:pointer;display:inline-block;">Import config</span>
+        <span id="import-label" style="padding:8px 16px;border:1px solid #ccc;border-radius:4px;cursor:pointer;display:inline-block;" data-i18n="toolbar.importConfig">Import config</span>
         <input type="file" id="import-file" accept=".json" style="display:none" />
       </label>
       <label style="width:auto;margin:0;display:flex;align-items:center;gap:6px;">
         <input type="checkbox" id="auto-refresh-toggle" style="width:auto;margin:0;" />
-        Auto-refresh every
+        <span data-i18n="toolbar.autoRefreshEvery">Auto-refresh every</span>
         <select id="auto-refresh-interval" style="width:auto;margin:0;padding:6px 8px;">
           <option value="2000">2 s</option>
           <option value="5000" selected>5 s</option>
@@ -65,109 +80,230 @@
           <option value="30000">30 s</option>
         </select>
       </label>
+      <div style="margin-left:auto;display:flex;gap:4px;">
+        <button id="lang-en-btn" class="lang-btn active" onclick="setLang('en')">EN</button>
+        <button id="lang-de-btn" class="lang-btn" onclick="setLang('de')">DE</button>
+      </div>
     </div>
 
     <!-- ── Runtime live view ───────────────────────────────────────── -->
     <div class="panel" style="margin-bottom:24px;">
       <div class="rt-header">
-        <h2>Runtime</h2>
-        <span id="runtime-badge" class="badge stopped">○ stopped</span>
+        <h2 data-i18n="runtime.title">Runtime</h2>
+        <span id="runtime-badge" class="badge stopped">&#9675; stopped</span>
         <span id="runtime-cycle" class="hint"></span>
         <span id="runtime-last-updated" class="rt-meta hint"></span>
       </div>
-      <div id="runtime-sources"><p class="no-data hint">Loading…</p></div>
+      <div id="runtime-sources"><p class="no-data hint" data-i18n="runtime.loading">Loading…</p></div>
     </div>
 
     <!-- ── Config forms ────────────────────────────────────────────── -->
     <div class="grid-3">
       <form id="source-form">
-        <h2>Create source</h2>
-        <label>Name<input name="name" required /></label>
-        <label>Host/IP<input name="host" required value="192.168.1.10" /></label>
+        <h2 data-i18n="form.source.title">Create source</h2>
+        <label><span data-i18n="form.source.name">Name</span><input name="name" required /></label>
+        <label><span data-i18n="form.source.host">Host / IP</span><input name="host" required value="192.168.1.10" /></label>
         <div class="row">
-          <label>Port<input name="port" type="number" required value="502" /></label>
-          <label>Unit ID<input name="unitId" type="number" required value="1" /></label>
+          <label><span data-i18n="form.source.port">Port</span><input name="port" type="number" required value="502" /></label>
+          <label><span data-i18n="form.source.unitId">Unit ID</span><input name="unitId" type="number" required value="1" /></label>
         </div>
-        <label>Polling interval ms<input name="pollingIntervalMs" type="number" required value="5000" /></label>
-        <label>Description<textarea name="description"></textarea></label>
-        <button type="submit">Save source</button>
+        <label><span data-i18n="form.source.pollingInterval">Polling interval ms</span><input name="pollingIntervalMs" type="number" required value="5000" /></label>
+        <label><span data-i18n="form.source.description">Description</span><textarea name="description"></textarea></label>
+        <button type="submit" data-i18n="form.source.save">Save source</button>
       </form>
 
       <form id="register-form">
-        <h2>Create register</h2>
-        <label>Source<select name="sourceId" id="source-select"></select></label>
-        <label>Name<input name="name" required /></label>
+        <h2 data-i18n="form.register.title">Create register</h2>
+        <label><span data-i18n="form.register.source">Source</span><select name="sourceId" id="source-select"></select></label>
+        <label><span data-i18n="form.register.name">Name</span><input name="name" required /></label>
         <div class="row">
-          <label>Register type<select name="registerType"><option>holding</option><option>input</option><option>coil</option><option>discrete-input</option></select></label>
-          <label>Data type<select name="dataType"><option>uint16</option><option>int16</option><option>uint32</option><option>int32</option><option>float32</option><option>bool</option></select></label>
+          <label><span data-i18n="form.register.registerType">Register type</span><select name="registerType"><option>holding</option><option>input</option><option>coil</option><option>discrete-input</option></select></label>
+          <label><span data-i18n="form.register.dataType">Data type</span><select name="dataType"><option>uint16</option><option>int16</option><option>uint32</option><option>int32</option><option>float32</option><option>bool</option></select></label>
         </div>
         <div class="row">
-          <label>Address<input name="address" type="number" required value="0" /></label>
-          <label>Length<input name="length" type="number" required value="1" /></label>
+          <label><span data-i18n="form.register.address">Address</span><input name="address" type="number" required value="0" /></label>
+          <label><span data-i18n="form.register.length">Length</span><input name="length" type="number" required value="1" /></label>
         </div>
         <div class="row">
-          <label>Scale<input name="scale" type="number" step="any" value="1" /></label>
-          <label>Precision<input name="precision" type="number" value="0" /></label>
+          <label><span data-i18n="form.register.scale">Scale</span><input name="scale" type="number" step="any" value="1" /></label>
+          <label><span data-i18n="form.register.precision">Precision</span><input name="precision" type="number" value="0" /></label>
         </div>
-        <label>Unit<input name="unit" value="kW" /></label>
-        <label>Description<textarea name="description"></textarea></label>
-        <button type="submit">Save register</button>
+        <label><span data-i18n="form.register.unit">Unit</span><input name="unit" value="kW" /></label>
+        <label><span data-i18n="form.register.description">Description</span><textarea name="description"></textarea></label>
+        <button type="submit" data-i18n="form.register.save">Save register</button>
       </form>
 
       <form id="profile-form">
-        <h2>Create profile</h2>
-        <label>Name<input name="name" required /></label>
-        <label>Provider key<input name="providerKey" required value="generic-energy" /></label>
-        <label>Source defaults JSON<textarea name="sourceDefaults">{
+        <h2 data-i18n="form.profile.title">Create profile</h2>
+        <label><span data-i18n="form.profile.name">Name</span><input name="name" required /></label>
+        <label><span data-i18n="form.profile.providerKey">Provider key</span><input name="providerKey" required value="generic-energy" /></label>
+        <label><span data-i18n="form.profile.sourceDefaults">Source defaults JSON</span><textarea name="sourceDefaults">{
   "port": 502,
   "unitId": 1,
   "pollingIntervalMs": 5000
 }</textarea></label>
-        <label>Register templates JSON<textarea name="registerTemplates">[]</textarea></label>
-        <label>Description<textarea name="description"></textarea></label>
-        <button type="submit">Save profile</button>
+        <label><span data-i18n="form.profile.registerTemplates">Register templates JSON</span><textarea name="registerTemplates">[]</textarea></label>
+        <label><span data-i18n="form.profile.description">Description</span><textarea name="description"></textarea></label>
+        <button type="submit" data-i18n="form.profile.save">Save profile</button>
       </form>
     </div>
 
     <!-- ── Config lists ────────────────────────────────────────────── -->
-    <div class="grid-3" style="margin-top: 24px;">
+    <div class="grid-3" style="margin-top:24px;">
       <div class="panel">
-        <h2>Sources</h2>
+        <h2 data-i18n="list.sources">Sources</h2>
         <ul id="sources"></ul>
       </div>
       <div class="panel">
-        <h2>Registers</h2>
+        <h2 data-i18n="list.registers">Registers</h2>
         <ul id="registers"></ul>
       </div>
       <div class="panel">
-        <h2>Profiles</h2>
+        <h2 data-i18n="list.profiles">Profiles</h2>
         <ul id="profiles"></ul>
       </div>
     </div>
 
     <!-- ── Apply profile ──────────────────────────────────────────── -->
-    <div class="panel" style="margin-top: 24px;">
-      <h2>Apply profile to source</h2>
-      <p class="hint">Instantiates all register templates from the selected profile onto the chosen source.</p>
+    <div class="panel" style="margin-top:24px;">
+      <h2 data-i18n="apply.title">Apply profile to source</h2>
+      <p class="hint" data-i18n="apply.hint">Instantiates all register templates from the selected profile onto the chosen source.</p>
       <div class="row" style="max-width:600px;">
-        <label>Profile<select id="apply-profile-select"></select></label>
-        <label>Target source<select id="apply-source-select"></select></label>
+        <label><span data-i18n="apply.profile">Profile</span><select id="apply-profile-select"></select></label>
+        <label><span data-i18n="apply.targetSource">Target source</span><select id="apply-source-select"></select></label>
       </div>
       <label style="max-width:300px;margin-top:10px;">
         <input type="checkbox" id="apply-merge-defaults" style="width:auto;margin-right:6px;" />
-        Merge source defaults (port, unitId, pollingIntervalMs)
+        <span data-i18n="apply.mergeDefaults">Merge source defaults (port, unitId, pollingIntervalMs)</span>
       </label>
       <br />
-      <button id="apply-profile-btn" style="width:auto;padding:8px 20px;margin-top:12px;">Apply profile</button>
+      <button id="apply-profile-btn" style="width:auto;padding:8px 20px;margin-top:12px;" data-i18n="apply.button">Apply profile</button>
+    </div>
+
+    <!-- ── VPN Settings ──────────────────────────────────────────── -->
+    <div class="panel" style="margin-top:24px;">
+      <h2 data-i18n="vpn.title">VPN Settings</h2>
+
+      <!-- Status row -->
+      <div class="rt-header" style="margin-bottom:16px;">
+        <span id="vpn-status-badge" class="badge disabled">&#9633; disabled</span>
+        <span id="vpn-last-error" class="hint err" style="margin-left:8px;max-width:600px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+        <span id="vpn-last-connected" class="hint" style="margin-left:auto;"></span>
+      </div>
+
+      <!-- Settings form (type, enabled, credentials) -->
+      <form id="vpn-settings-form">
+        <div class="row">
+          <label>
+            <span data-i18n="vpn.type">Type</span>
+            <select name="type" id="vpn-type">
+              <option value="openvpn">OpenVPN</option>
+            </select>
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;margin-top:22px;">
+            <input type="checkbox" id="vpn-enabled" name="enabled" style="width:auto;margin:0;" />
+            <span data-i18n="vpn.enabled">VPN enabled</span>
+          </label>
+        </div>
+        <label>
+          <span data-i18n="vpn.remoteHost">Remote host (optional)</span>
+          <input name="remoteHost" id="vpn-remote-host" autocomplete="off" />
+        </label>
+        <label>
+          <span data-i18n="vpn.username">Username (optional)</span>
+          <input name="username" id="vpn-username" autocomplete="off" />
+        </label>
+        <div class="row">
+          <label>
+            <span data-i18n="vpn.password">Password (optional)</span>
+            <input type="password" name="password" id="vpn-password" autocomplete="new-password" />
+          </label>
+          <label>
+            <span data-i18n="vpn.passphrase">Certificate passphrase (optional)</span>
+            <input type="password" name="passphrase" id="vpn-passphrase" autocomplete="new-password" />
+          </label>
+        </div>
+        <p class="vpn-hint" data-i18n="vpn.secretsHint">Password and passphrase are write-only and not shown after saving.</p>
+        <div style="display:flex;gap:12px;margin-top:14px;flex-wrap:wrap;">
+          <button type="submit" style="width:auto;padding:8px 16px;" data-i18n="vpn.saveSettings">Save settings</button>
+          <button type="button" id="vpn-connect-btn" class="btn-connect" style="width:auto;padding:8px 16px;" data-i18n="vpn.connectBtn">Connect</button>
+          <button type="button" id="vpn-disconnect-btn" class="btn-disconnect" style="width:auto;padding:8px 16px;" data-i18n="vpn.disconnectBtn">Disconnect</button>
+        </div>
+      </form>
+
+      <!-- Profile sub-section -->
+      <div style="border-top:1px solid #eee;margin-top:20px;padding-top:16px;">
+        <h3 style="margin-top:0;margin-bottom:12px;" data-i18n="vpn.profileSection">OpenVPN Profile</h3>
+
+        <!-- File metadata (shown when a profile is stored) -->
+        <div id="vpn-file-info" style="display:none;background:#f8f9fa;border:1px solid #dee2e6;border-radius:6px;padding:10px 14px;margin-bottom:12px;">
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <span class="ok">&#9679;</span>
+            <span id="vpn-file-name" style="font-weight:600;font-size:14px;"></span>
+            <span id="vpn-file-size" class="hint"></span>
+            <span id="vpn-file-date" class="hint"></span>
+            <button id="vpn-remove-profile-btn" type="button" class="btn-disconnect" style="width:auto;padding:4px 12px;margin-left:auto;font-size:13px;" data-i18n="vpn.removeProfile">Remove profile</button>
+          </div>
+        </div>
+
+        <!-- No file state -->
+        <p id="vpn-no-file" class="hint" style="margin:0 0 12px 0;" data-i18n="vpn.noFileUploaded">No file uploaded</p>
+
+        <!-- Upload controls (always visible) -->
+        <label style="margin-top:0;">
+          <span data-i18n="vpn.pasteContent">Paste .ovpn content:</span>
+          <textarea id="vpn-paste-content" rows="5" style="font-family:monospace;font-size:12px;"></textarea>
+        </label>
+        <div style="display:flex;gap:10px;margin-top:8px;align-items:center;flex-wrap:wrap;">
+          <label style="display:inline-block;width:auto;margin:0;">
+            <span style="padding:6px 12px;border:1px solid #ccc;border-radius:4px;cursor:pointer;display:inline-block;font-size:13px;" data-i18n="vpn.uploadBtn">Upload .ovpn file</span>
+            <input type="file" id="vpn-upload-file" accept=".ovpn" style="display:none" />
+          </label>
+          <button id="vpn-save-profile-btn" type="button" style="width:auto;padding:6px 14px;font-size:13px;" data-i18n="vpn.saveProfile">Save profile</button>
+        </div>
+      </div>
     </div>
 
     <!-- ── Debug output ───────────────────────────────────────────── -->
     <div class="panel" style="margin-top:24px;">
-      <h2>Debug output</h2>
+      <h2 data-i18n="debug.title">Debug output</h2>
       <pre id="debug"></pre>
     </div>
 
     <script>
+      // ── i18n ──────────────────────────────────────────────────────
+      let currentLang = localStorage.getItem('mb-lang') || 'en';
+
+      function t(key) {
+        return (TRANSLATIONS[currentLang] || TRANSLATIONS.en)[key]
+          || TRANSLATIONS.en[key]
+          || key;
+      }
+
+      function applyTranslations() {
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+          el.textContent = t(el.dataset.i18n);
+        });
+        document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+          el.placeholder = t(el.dataset.i18nPlaceholder);
+        });
+        document.documentElement.lang = currentLang;
+        document.getElementById('vpn-password').placeholder = t('vpn.passwordPlaceholder');
+        document.getElementById('vpn-passphrase').placeholder = t('vpn.passphrasePlaceholder');
+        document.getElementById('vpn-paste-content').placeholder = t('vpn.profilePlaceholder');
+        document.getElementById('lang-en-btn').classList.toggle('active', currentLang === 'en');
+        document.getElementById('lang-de-btn').classList.toggle('active', currentLang === 'de');
+      }
+
+      function setLang(lang) {
+        currentLang = lang;
+        localStorage.setItem('mb-lang', lang);
+        applyTranslations();
+        // Re-render dynamic content that uses t()
+        refreshRuntime();
+        refreshVpn();
+      }
+
       // ── DOM refs ──────────────────────────────────────────────────
       const debug            = document.getElementById('debug');
       const sourceList       = document.getElementById('sources');
@@ -191,6 +327,16 @@
         try { return new Date(iso).toLocaleTimeString(); } catch { return iso; }
       }
 
+      function fmtDateTime(iso) {
+        if (!iso) return '—';
+        try { return new Date(iso).toLocaleString(); } catch { return iso; }
+      }
+
+      function fmtBytes(n) {
+        if (!n) return '';
+        return n < 1024 ? n + ' B' : (n / 1024).toFixed(1) + ' KB';
+      }
+
       function setDebug(value) {
         debug.textContent = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
       }
@@ -205,31 +351,28 @@
 
       // ── Runtime rendering ─────────────────────────────────────────
       function renderRuntime(runtime) {
-        // badge
         const running = !!runtime.running;
-        runtimeBadge.textContent = running ? '● running' : '○ stopped';
+        runtimeBadge.textContent = running ? t('runtime.running') : t('runtime.stopped');
         runtimeBadge.className   = 'badge ' + (running ? 'running' : 'stopped');
 
-        // cycle timestamps
         const cycleStart = runtime.cycleStartedAt ? fmtTime(runtime.cycleStartedAt) : null;
         const cycleEnd   = runtime.cycleFinishedAt ? fmtTime(runtime.cycleFinishedAt) : null;
         runtimeCycle.textContent = cycleStart
-          ? `Last cycle ${cycleStart}${cycleEnd ? ' → ' + cycleEnd : ''}`
+          ? `${t('runtime.lastCycle')} ${cycleStart}${cycleEnd ? ' \u2192 ' + cycleEnd : ''}`
           : '';
 
-        runtimeUpdated.textContent = 'Updated ' + new Date().toLocaleTimeString();
+        runtimeUpdated.textContent = t('runtime.updated') + ' ' + new Date().toLocaleTimeString();
 
         const sourceStates = Object.values(runtime.sourceStates || {});
 
         if (sourceStates.length === 0) {
           runtimeSources.innerHTML =
-            '<p class="no-data hint">' +
-            (running ? 'No enabled sources. Add a source and reload.' : 'Runtime stopped. Press Poll once or Start.') +
-            '</p>';
+            '<p class="no-data hint">' + esc(
+              running ? t('runtime.noSources.running') : t('runtime.noSources.stopped')
+            ) + '</p>';
           return;
         }
 
-        // group register states by sourceId
         const regsBySource = {};
         for (const reg of Object.values(runtime.registerStates || {})) {
           (regsBySource[reg.sourceId] = regsBySource[reg.sourceId] || []).push(reg);
@@ -239,32 +382,32 @@
           const regs = regsBySource[src.sourceId] || [];
 
           const srcErrHtml = src.lastError
-            ? `<span class="err" title="${esc(src.lastError)}">⚠ ${esc(src.lastError.slice(0, 60))}</span>`
-            : '<span class="ok">ok</span>';
+            ? `<span class="err" title="${esc(src.lastError)}">&#9888; ${esc(src.lastError.slice(0, 60))}</span>`
+            : `<span class="ok">${t('runtime.source.ok')}</span>`;
 
           const headerHtml = `
             <div class="rt-source-header">
               <strong>${esc(src.name)}</strong>
-              <span class="hint">${esc(src.host)}:${src.port} · unit&nbsp;${src.unitId} · ${src.pollingIntervalMs}&nbsp;ms</span>
-              <span class="hint">Registers:&nbsp;${src.registerCount ?? regs.length}</span>
-              <span class="hint">Last success:&nbsp;${fmtTime(src.lastSuccessAt)}</span>
-              <span class="hint">Next poll:&nbsp;${fmtTime(src.nextPollAt)}</span>
-              <span class="hint">Status:&nbsp;${srcErrHtml}</span>
+              <span class="hint">${esc(src.host)}:${src.port} &middot; ${t('list.unit')}&nbsp;${src.unitId} &middot; ${src.pollingIntervalMs}&nbsp;ms</span>
+              <span class="hint">${t('runtime.source.registers')}&nbsp;${src.registerCount ?? regs.length}</span>
+              <span class="hint">${t('runtime.source.lastSuccess')}&nbsp;${fmtTime(src.lastSuccessAt)}</span>
+              <span class="hint">${t('runtime.source.nextPoll')}&nbsp;${fmtTime(src.nextPollAt)}</span>
+              <span class="hint">${t('runtime.source.status')}&nbsp;${srcErrHtml}</span>
             </div>`;
 
           if (regs.length === 0) {
-            return `<div class="rt-source">${headerHtml}<p class="no-data hint">No registers configured for this source.</p></div>`;
+            return `<div class="rt-source">${headerHtml}<p class="no-data hint">${esc(t('runtime.noRegisters'))}</p></div>`;
           }
 
           const rows = regs.map(r => {
             const errHtml = r.error
-              ? `<span class="err" title="${esc(r.error)}">⚠ ${esc(r.error.slice(0, 50))}</span>`
-              : '<span class="ok">—</span>';
+              ? `<span class="err" title="${esc(r.error)}">&#9888; ${esc(r.error.slice(0, 50))}</span>`
+              : '<span class="ok">&mdash;</span>';
             const valueHtml = r.formattedValue != null
               ? `<span class="val-main">${esc(String(r.formattedValue))}</span>`
-              : '<span class="hint">—</span>';
-            const scaledHtml = r.scaledValue  != null ? esc(String(r.scaledValue))  : '<span class="hint">—</span>';
-            const rawHtml    = r.rawValue     != null ? esc(String(r.rawValue))     : '<span class="hint">—</span>';
+              : '<span class="hint">&mdash;</span>';
+            const scaledHtml = r.scaledValue != null ? esc(String(r.scaledValue)) : '<span class="hint">&mdash;</span>';
+            const rawHtml    = r.rawValue    != null ? esc(String(r.rawValue))    : '<span class="hint">&mdash;</span>';
             return `
               <tr class="${r.error ? 'row-err' : ''}">
                 <td>${esc(r.name)}</td>
@@ -285,8 +428,15 @@
               <table class="rt-table">
                 <thead>
                   <tr>
-                    <th>Name</th><th>Type</th><th>Addr</th><th>Data type</th>
-                    <th>Value</th><th>Scaled</th><th>Raw</th><th>Last read</th><th>Error</th>
+                    <th>${t('runtime.table.name')}</th>
+                    <th>${t('runtime.table.type')}</th>
+                    <th>${t('runtime.table.addr')}</th>
+                    <th>${t('runtime.table.dataType')}</th>
+                    <th>${t('runtime.table.value')}</th>
+                    <th>${t('runtime.table.scaled')}</th>
+                    <th>${t('runtime.table.raw')}</th>
+                    <th>${t('runtime.table.lastRead')}</th>
+                    <th>${t('runtime.table.error')}</th>
                   </tr>
                 </thead>
                 <tbody>${rows}</tbody>
@@ -301,7 +451,7 @@
           renderRuntime(runtime);
           return runtime;
         } catch (err) {
-          runtimeSources.innerHTML = `<p class="no-data err">Failed to fetch runtime status: ${esc(String(err?.error || err))}</p>`;
+          runtimeSources.innerHTML = `<p class="no-data err">${esc(t('runtime.fetchError'))} ${esc(String(err?.error || err))}</p>`;
         }
       }
 
@@ -309,47 +459,186 @@
       let autoRefreshHandle = null;
 
       function applyAutoRefresh() {
-        if (autoRefreshHandle) {
-          clearInterval(autoRefreshHandle);
-          autoRefreshHandle = null;
-        }
+        if (autoRefreshHandle) { clearInterval(autoRefreshHandle); autoRefreshHandle = null; }
         if (document.getElementById('auto-refresh-toggle').checked) {
           const ms = Number(document.getElementById('auto-refresh-interval').value) || 5000;
-          autoRefreshHandle = setInterval(refreshRuntime, ms);
+          autoRefreshHandle = setInterval(() => { refreshRuntime(); refreshVpn(); }, ms);
         }
       }
 
       document.getElementById('auto-refresh-toggle').addEventListener('change', applyAutoRefresh);
       document.getElementById('auto-refresh-interval').addEventListener('change', applyAutoRefresh);
 
+      // ── VPN ───────────────────────────────────────────────────────
+      function renderVpnStatus(vpn) {
+        const state = vpn.state || {};
+        const badge = document.getElementById('vpn-status-badge');
+        const statusMap = {
+          connected:    { cls: 'connected',    icon: '\u25cf ', key: 'vpn.statusConnected' },
+          connecting:   { cls: 'connecting',   icon: '\u25cc ', key: 'vpn.statusConnecting' },
+          error:        { cls: 'vpn-error',    icon: '\u2715 ', key: 'vpn.statusError' },
+          disabled:     { cls: 'disabled',     icon: '\u25a1 ', key: 'vpn.statusDisabled' },
+          disconnected: { cls: 'disconnected', icon: '\u25cb ', key: 'vpn.statusDisconnected' },
+        };
+        const entry = statusMap[state.status] || statusMap.disconnected;
+        badge.className   = 'badge ' + entry.cls;
+        badge.textContent = entry.icon + t(entry.key);
+
+        const errEl = document.getElementById('vpn-last-error');
+        errEl.textContent = state.lastError ? t('vpn.lastError') + ' ' + state.lastError : '';
+
+        const connEl = document.getElementById('vpn-last-connected');
+        connEl.textContent = state.lastConnectedAt
+          ? t('vpn.lastConnected') + ' ' + fmtTime(state.lastConnectedAt)
+          : '';
+      }
+
+      function renderVpnProfile(vpn) {
+        const profile = vpn.uploadedProfile || {};
+        const fileInfo = document.getElementById('vpn-file-info');
+        const noFile   = document.getElementById('vpn-no-file');
+        if (profile.exists) {
+          fileInfo.style.display = '';
+          noFile.style.display   = 'none';
+          document.getElementById('vpn-file-name').textContent = profile.filename || 'profile.ovpn';
+          document.getElementById('vpn-file-size').textContent = fmtBytes(profile.sizeBytes);
+          document.getElementById('vpn-file-date').textContent = profile.uploadedAt
+            ? t('vpn.fileUploadedAt') + ' ' + fmtDateTime(profile.uploadedAt)
+            : '';
+        } else {
+          fileInfo.style.display = 'none';
+          noFile.style.display   = '';
+        }
+      }
+
+      function populateVpnForm(vpn) {
+        document.getElementById('vpn-type').value         = vpn.type || 'openvpn';
+        document.getElementById('vpn-enabled').checked   = !!vpn.enabled;
+        document.getElementById('vpn-remote-host').value = vpn.remoteHost || '';
+        document.getElementById('vpn-username').value    = vpn.username || '';
+        // Passwords are write-only — never pre-fill
+        document.getElementById('vpn-password').value   = '';
+        document.getElementById('vpn-passphrase').value = '';
+        // Profile content is write-only — textarea is an upload widget, not a display
+        renderVpnProfile(vpn);
+      }
+
+      async function refreshVpn() {
+        try {
+          const vpn = await fetchJson('/api/vpn');
+          renderVpnStatus(vpn);
+          renderVpnProfile(vpn);
+          return vpn;
+        } catch { /* non-fatal */ }
+      }
+
+      // VPN settings form (type, enabled, credentials) — does NOT include profile content
+      document.getElementById('vpn-settings-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const data = Object.fromEntries(new FormData(e.target).entries());
+        data.enabled = document.getElementById('vpn-enabled').checked;
+        // Don't overwrite existing secrets when fields are left blank
+        if (!data.password)   delete data.password;
+        if (!data.passphrase) delete data.passphrase;
+        try {
+          const result = await fetchJson('/api/vpn', { method: 'PUT', body: JSON.stringify(data) });
+          renderVpnStatus(result);
+          renderVpnProfile(result);
+          setDebug(result);
+        } catch (err) { setDebug(err); }
+      });
+
+      document.getElementById('vpn-connect-btn').addEventListener('click', async () => {
+        try {
+          const result = await fetchJson('/api/vpn/connect', { method: 'POST' });
+          setDebug(result);
+          // Poll status after short delays — OpenVPN starts asynchronously
+          setTimeout(refreshVpn, 800);
+          setTimeout(refreshVpn, 3000);
+        } catch (err) { setDebug(err); }
+      });
+
+      document.getElementById('vpn-disconnect-btn').addEventListener('click', async () => {
+        try {
+          const result = await fetchJson('/api/vpn/disconnect', { method: 'POST' });
+          renderVpnStatus({ state: result });
+          setDebug(result);
+        } catch (err) { setDebug(err); }
+      });
+
+      // File input: populate textarea and remember filename for the upload
+      let pendingProfileFilename = null;
+      document.getElementById('vpn-upload-file').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        pendingProfileFilename = file.name;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          document.getElementById('vpn-paste-content').value = ev.target.result;
+        };
+        reader.readAsText(file);
+        e.target.value = '';
+      });
+
+      // Save profile button: POST /api/vpn/upload with content + filename
+      document.getElementById('vpn-save-profile-btn').addEventListener('click', async () => {
+        const content = document.getElementById('vpn-paste-content').value;
+        if (!content.trim()) return setDebug(t('vpn.noProfileContent'));
+        const filename = pendingProfileFilename || 'manual-config.ovpn';
+        try {
+          const result = await fetchJson('/api/vpn/upload', {
+            method: 'POST',
+            body: JSON.stringify({ content, filename }),
+          });
+          pendingProfileFilename = null;
+          document.getElementById('vpn-paste-content').value = '';
+          renderVpnStatus(result);
+          renderVpnProfile(result);
+          setDebug(result);
+        } catch (err) { setDebug(err); }
+      });
+
+      // Remove profile button: DELETE /api/vpn/profile
+      document.getElementById('vpn-remove-profile-btn').addEventListener('click', async () => {
+        try {
+          const result = await fetchJson('/api/vpn/profile', { method: 'DELETE' });
+          renderVpnStatus(result);
+          renderVpnProfile(result);
+          setDebug(result);
+        } catch (err) { setDebug(err); }
+      });
+
       // ── Full config + runtime refresh ─────────────────────────────
       async function refresh() {
-        const [sources, registers, profiles, runtime] = await Promise.all([
+        const [sources, registers, profiles, runtime, vpn] = await Promise.all([
           fetchJson('/api/sources'),
           fetchJson('/api/registers'),
           fetchJson('/api/profiles'),
           fetchJson('/api/runtime/status'),
+          fetchJson('/api/vpn'),
         ]);
 
         sourceList.innerHTML = sources.map(s =>
-          `<li><strong>${esc(s.name)}</strong> — ${esc(s.host)}:${s.port} (unit ${s.unitId}) <span class="hint">${s.enabled ? '● enabled' : '○ disabled'}</span></li>`
-        ).join('') || '<li class="hint">none</li>';
+          `<li><strong>${esc(s.name)}</strong> &mdash; ${esc(s.host)}:${s.port} (${t('list.unit')} ${s.unitId}) <span class="hint">${s.enabled ? '\u25cf ' + t('list.enabled') : '\u25cb ' + t('list.disabled')}</span></li>`
+        ).join('') || `<li class="hint">${t('list.none')}</li>`;
 
         registerList.innerHTML = registers.map(r =>
-          `<li><strong>${esc(r.name)}</strong> — ${r.registerType} @ ${r.address} (${r.dataType}${r.unit ? ', ' + esc(r.unit) : ''})</li>`
-        ).join('') || '<li class="hint">none</li>';
+          `<li><strong>${esc(r.name)}</strong> &mdash; ${r.registerType} @ ${r.address} (${r.dataType}${r.unit ? ', ' + esc(r.unit) : ''})</li>`
+        ).join('') || `<li class="hint">${t('list.none')}</li>`;
 
         profileList.innerHTML = profiles.map(p =>
-          `<li><strong>${esc(p.name)}</strong> — ${esc(p.providerKey)} <span class="hint">(${(p.registerTemplates || []).length} templates)</span></li>`
-        ).join('') || '<li class="hint">none</li>';
+          `<li><strong>${esc(p.name)}</strong> &mdash; ${esc(p.providerKey)} <span class="hint">(${(p.registerTemplates || []).length} ${t('list.templates')})</span></li>`
+        ).join('') || `<li class="hint">${t('list.none')}</li>`;
 
         const srcOptions = sources.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
-        sourceSelect.innerHTML  = srcOptions;
-        applySourceSel.innerHTML = srcOptions || '<option value="">— no sources —</option>';
+        sourceSelect.innerHTML   = srcOptions;
+        applySourceSel.innerHTML = srcOptions || `<option value="">${t('list.noSources')}</option>`;
         applyProfileSel.innerHTML = profiles.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')
-          || '<option value="">— no profiles —</option>';
+          || `<option value="">${t('list.noProfiles')}</option>`;
 
         renderRuntime(runtime);
+        renderVpnStatus(vpn);
+        populateVpnForm(vpn);
         setDebug({ sources, registers, profiles, runtime });
       }
 
@@ -400,7 +689,7 @@
         const profileId = applyProfileSel.value;
         const sourceId  = applySourceSel.value;
         const merge     = document.getElementById('apply-merge-defaults').checked;
-        if (!profileId || !sourceId) return setDebug('Select a profile and a source first.');
+        if (!profileId || !sourceId) return setDebug(t('apply.selectFirst'));
         try {
           const result = await fetchJson(`/api/profiles/${profileId}/apply`, {
             method: 'POST', body: JSON.stringify({ sourceId, mergeSourceDefaults: merge }),
@@ -433,6 +722,8 @@
         finally { e.target.value = ''; }
       });
 
+      // ── Init ──────────────────────────────────────────────────────
+      applyTranslations();
       refresh().catch(setDebug);
     </script>
   </body>

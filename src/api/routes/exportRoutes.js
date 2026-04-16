@@ -3,7 +3,8 @@ const { readCollection, writeCollection } = require('../../persistence/jsonStore
 
 const router = express.Router();
 
-const COLLECTIONS = ['sources', 'registers', 'profiles', 'settings'];
+// vpn_secrets is intentionally excluded — never export credentials
+const COLLECTIONS = ['sources', 'registers', 'profiles', 'settings', 'vpn'];
 
 router.get('/', (req, res) => {
   const snapshot = {};

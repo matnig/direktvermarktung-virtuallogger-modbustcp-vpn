@@ -5,6 +5,7 @@ const settingsRoutes = require('./routes/settingsRoutes');
 const runtimeRoutes = require('./routes/runtimeRoutes');
 const profileRoutes = require('./routes/profileRoutes');
 const exportRoutes = require('./routes/exportRoutes');
+const vpnRoutes = require('./routes/vpnRoutes');
 const { DATA_TYPES, REGISTER_TYPES } = require('../validation/registerValidation');
 
 const router = express.Router();
@@ -26,5 +27,6 @@ router.use('/profiles', profileRoutes);
 router.use('/settings', settingsRoutes);
 router.use('/runtime', runtimeRoutes);
 router.use('/export', exportRoutes);
+router.use('/vpn', vpnRoutes);
 
 module.exports = router;
