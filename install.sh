@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # install.sh — download, install, and start modbus-bridge
-# Usage (remote):  curl -fsSL https://raw.githubusercontent.com/OWNER/REPO/main/install.sh | bash
+# Usage (remote):  curl -fsSL https://raw.githubusercontent.com/matnig/direktvermarktung-virtuallogger-modbustcp-vpn/install.sh | bash
 # Usage (local):   bash install.sh
 
 set -euo pipefail
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 # Update REPO_URL before pushing to GitHub.
-REPO_URL="https://github.com/OWNER/modbus-bridge.git"
+REPO_URL="https://github.com/matnig/direktvermarktung-virtuallogger-modbustcp-vpn.git"
 INSTALL_DIR="${MODBUS_BRIDGE_DIR:-$HOME/modbus-bridge}"
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
