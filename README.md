@@ -6,9 +6,9 @@ Configure Modbus TCP sources and register definitions through a web UI or REST A
 
 ---
 
-## One-command install
+## One-command install (Ubuntu / systemd)
 
-Run either of these in your terminal. The script clones the repo, installs dependencies, and starts the app.
+Run either of these in your terminal. The script clones the repo, installs dependencies, and registers the app as a persistent systemd service that starts automatically on every boot.
 
 ```bash
 # curl
@@ -26,7 +26,39 @@ The app installs to `~/modbus-bridge` by default. Override with:
 MODBUS_BRIDGE_DIR=/opt/modbus-bridge curl -fsSL https://...install.sh | bash
 ```
 
-Open **http://localhost:3000** after the server starts.
+The installer requires `sudo` to write `/etc/systemd/system/modbus-bridge.service` and interact with systemctl. You will be prompted if your session does not already have elevated privileges.
+
+Open **http://localhost:3000** once the installer finishes.
+
+Re-running the installer on an existing installation pulls the latest code, reinstalls dependencies, rewrites the service unit, and restarts the service — all idempotently.
+
+---
+
+## Service management
+
+After installation the app runs as the `modbus-bridge` systemd service.
+
+```bash
+# Status
+systemctl status modbus-bridge
+
+# Live logs (follow)
+journalctl -u modbus-bridge -f
+
+# Recent logs
+journalctl -u modbus-bridge -n 100
+
+# Start / stop / restart
+sudo systemctl start   modbus-bridge
+sudo systemctl stop    modbus-bridge
+sudo systemctl restart modbus-bridge
+
+# Enable / disable auto-start on boot
+sudo systemctl enable  modbus-bridge
+sudo systemctl disable modbus-bridge
+```
+
+The service is enabled on boot automatically by the installer. It restarts on failure with a 5-second back-off.
 
 ---
 
@@ -56,12 +88,14 @@ No database. No Docker required. Runs fully local with JSON file storage.
 
 ---
 
-## Scripts
+## Scripts (development)
+
+These are for local development. On Ubuntu servers use the systemd service instead (see above).
 
 | Command | Description |
 |---------|-------------|
 | `npm run dev` | Start with nodemon — auto-restarts on source file changes |
-| `npm start` | Start for production / stable local use |
+| `npm start` | Start in foreground (no auto-restart, no boot persistence) |
 | `npm test` | Run the test suite (Node built-in test runner) |
 | `npm run test:watch` | Re-run tests on file save |
 
@@ -245,7 +279,7 @@ Files are created automatically on first run. They are gitignored — each envir
 - No authentication — all API endpoints and the web UI are unauthenticated
 - Modbus connection pooled per host:port; one client instance per server process
 - Register polling is sequential per source (not parallel across registers)
-- **VPN — OS requirements**: The `openvpn` binary must be installed on the host and typically requires `root` or `CAP_NET_ADMIN`. In production, run via a privileged helper script or a systemd service unit that has the required capabilities.
+- **VPN — OS requirements**: The `openvpn` binary must be installed on the host and typically requires `root` or `CAP_NET_ADMIN`. The systemd service unit installed by `install.sh` runs as a non-root user; if OpenVPN requires elevated privileges, either grant `CAP_NET_ADMIN` to the service unit or run a privileged helper script.
 - **VPN — state persistence**: Connection state (connected / disconnected / error) is in-memory only and resets when the server restarts.
 - **VPN — secrets at rest**: Password and passphrase are stored in plaintext in `vpn_secrets.json`. This file is excluded from export snapshots but is not encrypted.
 - **VPN — content limit**: Profile content is limited to 100 KB. Upload validation checks for known OpenVPN config keywords; unusual or custom `.ovpn` dialects may be rejected.
