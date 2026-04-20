@@ -16,6 +16,7 @@
   "dependencies": {
     "express": "^4.21.2",
     "modbus-serial": "^8.0.23",
+    "mqtt": "^5.15.1",
     "uuid": "^11.1.0"
   },
   "devDependencies": {

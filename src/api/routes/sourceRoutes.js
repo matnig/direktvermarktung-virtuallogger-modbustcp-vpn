@@ -1,5 +1,6 @@
 const express = require('express');
-const sourceService = require('../../services/sourceService');
+const sourceService      = require('../../services/sourceService');
+const registerRepository = require('../../repositories/registerRepository');
 
 const router = express.Router();
 
@@ -27,6 +28,18 @@ router.put('/:id', (req, res) => {
 });
 
 router.delete('/:id', (req, res) => {
+  const existing = sourceService.getSource(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'source_not_found' });
+
+  const children = registerRepository.listBySourceId(req.params.id);
+  if (children.length > 0) {
+    return res.status(400).json({
+      error: 'source_has_registers',
+      message: `Delete the ${children.length} register(s) belonging to this source first.`,
+      registers: children.map((r) => ({ id: r.id, name: r.name })),
+    });
+  }
+
   const result = sourceService.deleteSource(req.params.id);
   if (!result.deleted) return res.status(404).json({ error: 'source_not_found' });
   res.status(204).send();

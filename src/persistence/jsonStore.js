@@ -40,6 +40,11 @@ function loadCollection(name, fallback = []) {
     cache.set(name, parsed);
     return parsed;
   } catch (error) {
+    if (error instanceof SyntaxError) {
+      console.error(`[JsonStore] corrupt data file "${name}.json", recovering with default: ${error.message}`);
+      writeCollection(name, defaultValue);
+      return cache.get(name);
+    }
     throw new Error(`Failed to load JSON collection "${name}": ${error.message}`);
   }
 }
@@ -54,7 +59,9 @@ function writeCollection(name, data) {
   const next = cloneValue(data);
 
   try {
-    fs.writeFileSync(target, JSON.stringify(next, null, 2));
+    const tmpPath = target + '.tmp';
+    fs.writeFileSync(tmpPath, JSON.stringify(next, null, 2));
+    fs.renameSync(tmpPath, target);
     cache.set(name, next);
     return cloneValue(next);
   } catch (error) {

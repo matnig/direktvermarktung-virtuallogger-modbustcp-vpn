@@ -45,6 +45,15 @@ class ModbusClient {
         throw new Error(`Unsupported register type: ${registerDefinition.registerType}`);
     }
   }
+
+  // Write one or more holding register words (FC06 for single, FC16 for multi).
+  async writeRegisterWords(source, address, words) {
+    await this.connect(source);
+    if (words.length === 1) {
+      return this.client.writeRegister(Number(address), words[0] & 0xffff);
+    }
+    return this.client.writeRegisters(Number(address), words.map((w) => w & 0xffff));
+  }
 }
 
 module.exports = ModbusClient;

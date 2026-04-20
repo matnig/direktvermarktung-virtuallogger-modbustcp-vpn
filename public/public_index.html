@@ -55,10 +55,19 @@
       .vpn-hint { font-size: 12px; color: #888; margin-top: 4px; }
       .btn-connect    { background: #28a745 !important; color: #fff !important; border: none !important; }
       .btn-disconnect { background: #dc3545 !important; color: #fff !important; border: none !important; }
+
+      /* toast notifications */
+      #toast { position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+      .toast-msg { padding: 10px 16px; border-radius: 6px; font-size: 14px; max-width: 480px; box-shadow: 0 2px 8px rgba(0,0,0,0.18); opacity: 0; transform: translateY(8px); transition: opacity 0.2s, transform 0.2s; pointer-events: auto; }
+      .toast-msg.show { opacity: 1; transform: translateY(0); }
+      .toast-msg.success { background: #d4edda; color: #155724; border-left: 4px solid #28a745; }
+      .toast-msg.error   { background: #f8d7da; color: #721c24; border-left: 4px solid #dc3545; }
+      .toast-msg.warn    { background: #fff3cd; color: #856404; border-left: 4px solid #ffc107; }
     </style>
     <script src="/i18n/translations.js"></script>
   </head>
   <body>
+    <div id="toast"></div>
     <h1>Modbus Bridge</h1>
     <p class="hint" data-i18n="app.subtitle">Runtime polling · Live values · Profile application · Export / Import</p>
 
@@ -264,6 +273,333 @@
       </div>
     </div>
 
+    <!-- ── Bridge: External Modbus Server ───────────────────────── -->
+    <div class="panel" style="margin-top:24px;">
+      <h2 data-i18n="bridge.title">Bridge</h2>
+
+      <!-- Server settings -->
+      <h3 data-i18n="bridge.server.title" style="margin-top:0;margin-bottom:12px;">External Modbus Server</h3>
+      <div class="rt-header" style="margin-bottom:16px;">
+        <span id="bridge-server-badge" class="badge stopped">&#9675; stopped</span>
+        <span id="bridge-server-clients" class="hint" style="margin-left:12px;"></span>
+      </div>
+      <form id="bridge-server-form">
+        <div class="row" style="max-width:600px;">
+          <label><span data-i18n="bridge.server.host">Listen host</span><input name="host" id="bridge-host" value="0.0.0.0" /></label>
+          <label><span data-i18n="bridge.server.port">Listen port</span><input name="port" id="bridge-port" type="number" value="5020" /></label>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:10px;">
+          <input type="checkbox" id="bridge-enabled" name="enabled" style="width:auto;margin:0;" />
+          <span data-i18n="bridge.server.enabled">Auto-start on boot</span>
+        </label>
+        <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;">
+          <button type="submit" style="width:auto;padding:8px 16px;" data-i18n="bridge.server.save">Save settings</button>
+          <button type="button" id="bridge-start-btn" class="btn-connect" style="width:auto;padding:8px 16px;" data-i18n="bridge.server.start">Start server</button>
+          <button type="button" id="bridge-stop-btn" class="btn-disconnect" style="width:auto;padding:8px 16px;" data-i18n="bridge.server.stop">Stop server</button>
+        </div>
+      </form>
+
+      <!-- Mapping live values -->
+      <div style="border-top:1px solid #eee;margin-top:20px;padding-top:16px;">
+        <h3 style="margin-top:0;margin-bottom:10px;" data-i18n="bridge.status.title">Mapping live values</h3>
+        <div id="bridge-mapping-status"></div>
+      </div>
+
+      <!-- Write forwarding status -->
+      <div style="border-top:1px solid #eee;margin-top:16px;padding-top:16px;">
+        <h3 style="margin-top:0;margin-bottom:10px;" data-i18n="bridge.write.title">Write forwarding</h3>
+        <div id="bridge-write-status"></div>
+      </div>
+    </div>
+
+    <!-- ── External Registers ─────────────────────────────────────── -->
+    <div class="grid" style="margin-top:24px;">
+      <form id="extreg-form">
+        <h2 data-i18n="extreg.form.title">Create external register</h2>
+        <label><span data-i18n="extreg.form.name">Name</span><input name="name" required /></label>
+        <div class="row">
+          <label><span data-i18n="extreg.form.address">Address</span><input name="address" type="number" required value="0" /></label>
+          <label><span data-i18n="extreg.form.dataType">Data type</span>
+            <select name="dataType">
+              <option>uint16</option><option>int16</option><option>uint32</option>
+              <option>int32</option><option>float32</option><option>bool</option>
+            </select>
+          </label>
+        </div>
+        <div class="row">
+          <label><span data-i18n="extreg.form.unit">Unit</span><input name="unit" /></label>
+          <label style="display:flex;align-items:center;gap:8px;margin-top:24px;">
+            <input type="checkbox" name="writable" id="extreg-writable" style="width:auto;margin:0;" />
+            <span data-i18n="extreg.form.writable">Writable by external client</span>
+          </label>
+        </div>
+        <label><span data-i18n="extreg.form.description">Description</span><textarea name="description"></textarea></label>
+        <button type="submit" id="extreg-submit-btn" data-i18n="extreg.form.save">Save external register</button>
+        <button type="button" id="extreg-cancel-btn" style="display:none;background:#888;" data-i18n="common.cancel">Cancel</button>
+      </form>
+
+      <div class="panel">
+        <h2 data-i18n="extreg.title">External Registers</h2>
+        <ul id="extreg-list"></ul>
+      </div>
+    </div>
+
+    <!-- ── Mappings ───────────────────────────────────────────────── -->
+    <div class="grid" style="margin-top:24px;">
+      <form id="mapping-form">
+        <h2 data-i18n="mapping.form.title">Create mapping</h2>
+        <label><span data-i18n="mapping.form.label">Label</span><input name="label" /></label>
+        <label><span data-i18n="mapping.form.sourceType">Source type</span>
+          <select name="sourceType" id="mapping-src-type">
+            <option value="register">Internal register</option>
+            <option value="variable">Virtual variable</option>
+          </select>
+        </label>
+        <div id="mapping-src-reg-row">
+          <label><span data-i18n="mapping.form.sourceRegister">Internal source register</span>
+            <select name="sourceRegisterId" id="mapping-src-select"></select>
+          </label>
+        </div>
+        <div id="mapping-src-var-row" style="display:none;">
+          <label><span data-i18n="mapping.form.sourceId">Source variable</span>
+            <select id="mapping-src-var-select"></select>
+          </label>
+        </div>
+        <label><span data-i18n="mapping.form.targetType">Target type</span>
+          <select name="targetType" id="mapping-tgt-type">
+            <option value="external">External register</option>
+            <option value="variable">Virtual variable</option>
+            <option value="internal">Internal register (write)</option>
+          </select>
+        </label>
+        <div id="mapping-tgt-ext-row">
+          <label><span data-i18n="mapping.form.externalRegister">External register</span>
+            <select name="externalRegisterId" id="mapping-ext-select"></select>
+          </label>
+        </div>
+        <div id="mapping-tgt-var-row" style="display:none;">
+          <label><span data-i18n="mapping.form.targetId">Target variable</span>
+            <select id="mapping-tgt-var-select"></select>
+          </label>
+        </div>
+        <div id="mapping-tgt-int-row" style="display:none;">
+          <label><span data-i18n="mapping.form.targetId">Target internal address</span>
+            <input id="mapping-tgt-int-input" type="number" value="0" />
+          </label>
+        </div>
+        <div id="mapping-direction-row">
+          <label><span data-i18n="mapping.form.direction">Direction</span>
+            <select name="direction">
+              <option value="internal_to_external">internal → external</option>
+              <option value="external_to_internal">external → internal</option>
+              <option value="bidirectional">bidirectional</option>
+            </select>
+          </label>
+        </div>
+        <label>
+          <span data-i18n="mapping.form.transforms">Transforms (JSON array)</span>
+          <textarea name="transforms" rows="4" style="font-family:monospace;font-size:12px;">[]</textarea>
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:10px;">
+          <input type="checkbox" name="enabled" id="mapping-enabled" checked style="width:auto;margin:0;" />
+          <span data-i18n="mapping.form.enabled">Enabled</span>
+        </label>
+        <label><span data-i18n="mapping.form.description">Description</span><textarea name="description"></textarea></label>
+        <button type="submit" id="mapping-submit-btn" data-i18n="mapping.form.save">Save mapping</button>
+        <button type="button" id="mapping-cancel-btn" style="display:none;background:#888;" data-i18n="common.cancel">Cancel</button>
+      </form>
+
+      <div class="panel">
+        <h2 data-i18n="mapping.title">Mappings</h2>
+        <ul id="mapping-list"></ul>
+      </div>
+    </div>
+
+    <!-- ── Watchdogs ──────────────────────────────────────────────── -->
+    <div class="grid" style="margin-top:24px;">
+      <form id="watchdog-form">
+        <h2 data-i18n="watchdog.form.title">Create watchdog</h2>
+        <label><span data-i18n="watchdog.form.label">Label</span><input name="label" /></label>
+        <label><span data-i18n="watchdog.form.externalRegister">External register to watch</span>
+          <select name="externalRegisterId" id="watchdog-ext-select"></select>
+        </label>
+        <label><span data-i18n="watchdog.form.timeout">Timeout (ms)</span><input name="timeoutMs" type="number" value="30000" /></label>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:10px;">
+          <input type="checkbox" name="enabled" id="watchdog-enabled" checked style="width:auto;margin:0;" />
+          <span data-i18n="watchdog.form.enabled">Enabled</span>
+        </label>
+        <label><span data-i18n="watchdog.form.description">Description</span><textarea name="description"></textarea></label>
+        <button type="submit" id="watchdog-submit-btn" data-i18n="watchdog.form.save">Save watchdog</button>
+        <button type="button" id="watchdog-cancel-btn" style="display:none;background:#888;" data-i18n="common.cancel">Cancel</button>
+      </form>
+
+      <div class="panel">
+        <h2 data-i18n="watchdog.title">Watchdogs</h2>
+        <ul id="watchdog-list"></ul>
+        <div style="border-top:1px solid #eee;margin-top:12px;padding-top:12px;">
+          <strong data-i18n="watchdog.status.title" style="font-size:14px;">Watchdog status</strong>
+          <div id="watchdog-status" style="margin-top:8px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Virtual Variables ────────────────────────────────────── -->
+    <div class="grid" style="margin-top:24px;">
+      <form id="var-form">
+        <h2 data-i18n="var.form.title">Create variable</h2>
+        <label><span data-i18n="var.form.name">Name (unique)</span><input name="name" required /></label>
+        <label><span data-i18n="var.form.label">Label</span><input name="label" /></label>
+        <div class="row">
+          <label><span data-i18n="var.form.dataType">Data type</span>
+            <select name="dataType">
+              <option>float32</option><option>uint16</option><option>int16</option>
+              <option>uint32</option><option>int32</option><option>bool</option><option>string</option>
+            </select>
+          </label>
+          <label><span data-i18n="var.form.unit">Unit</span><input name="unit" /></label>
+        </div>
+        <div class="row">
+          <label style="display:flex;align-items:center;gap:8px;margin-top:24px;">
+            <input type="checkbox" name="writable" id="var-writable" checked style="width:auto;margin:0;" />
+            <span data-i18n="var.form.writable">Writable (manual set)</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;margin-top:24px;">
+            <input type="checkbox" name="enabled" id="var-enabled" checked style="width:auto;margin:0;" />
+            <span data-i18n="var.form.enabled">Enabled</span>
+          </label>
+        </div>
+        <label><span data-i18n="var.form.initialValue">Initial value</span><input name="initialValue" /></label>
+        <label><span data-i18n="var.form.description">Description</span><textarea name="description"></textarea></label>
+        <button type="submit" id="var-submit-btn" data-i18n="var.form.save">Save variable</button>
+        <button type="button" id="var-cancel-btn" style="display:none;background:#888;" data-i18n="common.cancel">Cancel</button>
+      </form>
+
+      <div class="panel">
+        <h2 data-i18n="var.title">Virtual Variables</h2>
+        <ul id="var-list"></ul>
+        <div style="border-top:1px solid #eee;margin-top:12px;padding-top:12px;">
+          <strong data-i18n="var.status.title" style="font-size:14px;">Variable live values</strong>
+          <div id="var-status" style="margin-top:8px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── MQTT ──────────────────────────────────────────────────── -->
+    <div class="grid" style="margin-top:24px;">
+      <form id="mqtt-config-form">
+        <h2 data-i18n="mqtt.config.title">Broker settings</h2>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+          <span id="mqtt-status-badge" class="badge stopped">disabled</span>
+          <span id="mqtt-last-error" style="font-size:12px;color:#c00;"></span>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <input type="checkbox" id="mqtt-enabled" name="enabled" style="width:auto;margin:0;" />
+          <span data-i18n="mqtt.config.enabled">MQTT enabled</span>
+        </label>
+        <div class="row">
+          <label><span data-i18n="mqtt.config.host">Host</span><input name="host" value="localhost" /></label>
+          <label><span data-i18n="mqtt.config.port">Port</span><input name="port" type="number" value="1883" /></label>
+        </div>
+        <div class="row">
+          <label><span data-i18n="mqtt.config.clientId">Client ID</span><input name="clientId" value="modbus-bridge" /></label>
+          <label><span data-i18n="mqtt.config.baseTopic">Base topic</span><input name="baseTopic" value="modbus-bridge" /></label>
+        </div>
+        <div class="row">
+          <label><span data-i18n="mqtt.config.username">Username</span><input name="username" /></label>
+          <label><span data-i18n="mqtt.config.password">Password</span><input name="password" type="password" /></label>
+        </div>
+        <div class="row">
+          <label><span data-i18n="mqtt.config.keepalive">Keepalive (s)</span><input name="keepalive" type="number" value="60" /></label>
+          <label><span data-i18n="mqtt.config.reconnectMs">Reconnect interval (ms)</span><input name="reconnectMs" type="number" value="5000" /></label>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <input type="checkbox" id="mqtt-tls" name="tls" style="width:auto;margin:0;" />
+          <span data-i18n="mqtt.config.tls">TLS</span>
+        </label>
+        <button type="submit" data-i18n="mqtt.config.save">Save broker settings</button>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button type="button" id="mqtt-connect-btn" style="width:auto;" data-i18n="mqtt.config.connect">Connect</button>
+          <button type="button" id="mqtt-disconnect-btn" style="width:auto;" data-i18n="mqtt.config.disconnect">Disconnect</button>
+          <button type="button" id="mqtt-reconnect-btn" style="width:auto;" data-i18n="mqtt.config.reconnect">Reconnect</button>
+        </div>
+      </form>
+
+      <div class="panel">
+        <h2 data-i18n="mqttsub.title">MQTT Subscriptions</h2>
+        <form id="mqttsub-form" style="background:none;box-shadow:none;padding:0;margin-bottom:16px;">
+          <div class="row">
+            <label><span data-i18n="mqttsub.form.label">Label</span><input name="label" /></label>
+            <label><span data-i18n="mqttsub.form.topic">Topic</span><input name="topic" required /></label>
+          </div>
+          <div class="row">
+            <label><span data-i18n="mqttsub.form.variable">Target variable</span>
+              <select name="variableId" id="mqttsub-var-select"></select>
+            </label>
+            <label><span data-i18n="mqttsub.form.dataType">Data type</span>
+              <select name="dataType">
+                <option>float32</option><option>uint16</option><option>int16</option>
+                <option>uint32</option><option>int32</option><option>bool</option><option>string</option>
+              </select>
+            </label>
+          </div>
+          <label><span data-i18n="mqttsub.form.jsonPath">JSON path (optional)</span><input name="jsonPath" /></label>
+          <label style="display:flex;align-items:center;gap:8px;">
+            <input type="checkbox" name="enabled" id="mqttsub-enabled" checked style="width:auto;margin:0;" />
+            <span data-i18n="mqttsub.form.enabled">Enabled</span>
+          </label>
+          <button type="submit" id="mqttsub-submit-btn" data-i18n="mqttsub.form.save">Save subscription</button>
+          <button type="button" id="mqttsub-cancel-btn" style="display:none;background:#888;" data-i18n="common.cancel">Cancel</button>
+        </form>
+        <ul id="mqttsub-list"></ul>
+      </div>
+    </div>
+
+    <!-- ── MQTT Publish Rules ─────────────────────────────────────── -->
+    <div class="grid" style="margin-top:24px;">
+      <form id="mqttpub-form">
+        <h2 data-i18n="mqttpub.form.title">Add publish rule</h2>
+        <label><span data-i18n="mqttpub.form.label">Label</span><input name="label" /></label>
+        <div class="row">
+          <label><span data-i18n="mqttpub.form.sourceType">Source type</span>
+            <select name="sourceType" id="mqttpub-src-type">
+              <option value="register">Internal register</option>
+              <option value="variable">Virtual variable</option>
+              <option value="external_register">External register</option>
+              <option value="watchdog">Watchdog</option>
+            </select>
+          </label>
+          <label><span data-i18n="mqttpub.form.sourceId">Source ID</span>
+            <select id="mqttpub-src-select" name="sourceId"></select>
+          </label>
+        </div>
+        <label><span data-i18n="mqttpub.form.topic">Topic</span><input name="topic" required /></label>
+        <div class="row">
+          <label><span data-i18n="mqttpub.form.qos">QoS</span>
+            <select name="qos"><option value="0">0</option><option value="1">1</option><option value="2">2</option></select>
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;margin-top:24px;">
+            <input type="checkbox" name="retain" id="mqttpub-retain" style="width:auto;margin:0;" />
+            <span data-i18n="mqttpub.form.retain">Retain</span>
+          </label>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;">
+          <input type="checkbox" name="publishOnChange" id="mqttpub-onchange" checked style="width:auto;margin:0;" />
+          <span data-i18n="mqttpub.form.publishOnChange">Publish on change only</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;">
+          <input type="checkbox" name="enabled" id="mqttpub-enabled" checked style="width:auto;margin:0;" />
+          <span data-i18n="mqttpub.form.enabled">Enabled</span>
+        </label>
+        <button type="submit" id="mqttpub-submit-btn" data-i18n="mqttpub.form.save">Save publish rule</button>
+        <button type="button" id="mqttpub-cancel-btn" style="display:none;background:#888;" data-i18n="common.cancel">Cancel</button>
+      </form>
+
+      <div class="panel">
+        <h2 data-i18n="mqttpub.title">MQTT Publish Rules</h2>
+        <ul id="mqttpub-list"></ul>
+      </div>
+    </div>
+
     <!-- ── Debug output ───────────────────────────────────────────── -->
     <div class="panel" style="margin-top:24px;">
       <h2 data-i18n="debug.title">Debug output</h2>
@@ -299,9 +635,11 @@
         currentLang = lang;
         localStorage.setItem('mb-lang', lang);
         applyTranslations();
-        // Re-render dynamic content that uses t()
         refreshRuntime();
         refreshVpn();
+        refreshBridgeConfig().catch(() => {});
+        refreshVariables().catch(() => {});
+        refreshMqtt().catch(() => {});
       }
 
       // ── DOM refs ──────────────────────────────────────────────────
@@ -339,6 +677,27 @@
 
       function setDebug(value) {
         debug.textContent = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+      }
+
+      function showAlert(msg, type = 'error', durationMs = 5000) {
+        const container = document.getElementById('toast');
+        const el = document.createElement('div');
+        el.className = `toast-msg ${type}`;
+        el.textContent = msg;
+        container.appendChild(el);
+        requestAnimationFrame(() => el.classList.add('show'));
+        setTimeout(() => {
+          el.classList.remove('show');
+          el.addEventListener('transitionend', () => el.remove(), { once: true });
+        }, durationMs);
+      }
+
+      function errorMessage(err) {
+        if (!err) return 'Unknown error';
+        if (typeof err === 'string') return err;
+        if (err.message && typeof err.message === 'string') return err.message;
+        if (err.error && typeof err.error === 'string') return err.error;
+        return JSON.stringify(err);
       }
 
       async function fetchJson(url, options = {}) {
@@ -462,7 +821,12 @@
         if (autoRefreshHandle) { clearInterval(autoRefreshHandle); autoRefreshHandle = null; }
         if (document.getElementById('auto-refresh-toggle').checked) {
           const ms = Number(document.getElementById('auto-refresh-interval').value) || 5000;
-          autoRefreshHandle = setInterval(() => { refreshRuntime(); refreshVpn(); }, ms);
+          autoRefreshHandle = setInterval(() => {
+            refreshRuntime(); refreshVpn();
+            refreshBridgeConfig().catch(() => {});
+            refreshVariables().catch(() => {});
+            refreshMqtt().catch(() => {});
+          }, ms);
         }
       }
 
@@ -633,8 +997,18 @@
         const srcOptions = sources.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
         sourceSelect.innerHTML   = srcOptions;
         applySourceSel.innerHTML = srcOptions || `<option value="">${t('list.noSources')}</option>`;
+
+        // Populate mapping source-register select with all registers (labelled by source name)
+        const srcMap = Object.fromEntries(sources.map(s => [s.id, s.name]));
+        const regOpts = registers.map(r =>
+          `<option value="${r.id}">${esc((srcMap[r.sourceId] || '?') + ' / ' + r.name)} (${r.registerType}@${r.address})</option>`
+        ).join('');
+        document.getElementById('mapping-src-select').innerHTML = regOpts || '<option value="">—</option>';
         applyProfileSel.innerHTML = profiles.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')
           || `<option value="">${t('list.noProfiles')}</option>`;
+
+        _gRegisters = registers;
+        repopulateMqttPubSourceSelect();
 
         renderRuntime(runtime);
         renderVpnStatus(vpn);
@@ -647,8 +1021,8 @@
         e.preventDefault();
         const p = Object.fromEntries(new FormData(e.target).entries());
         p.port = Number(p.port); p.unitId = Number(p.unitId); p.pollingIntervalMs = Number(p.pollingIntervalMs);
-        try { await fetchJson('/api/sources', { method: 'POST', body: JSON.stringify(p) }); e.target.reset(); await refresh(); }
-        catch (err) { setDebug(err); }
+        try { await fetchJson('/api/sources', { method: 'POST', body: JSON.stringify(p) }); e.target.reset(); await refresh(); showAlert(t('common.saved'), 'success'); }
+        catch (err) { setDebug(err); showAlert(errorMessage(err)); }
       });
 
       document.getElementById('register-form').addEventListener('submit', async (e) => {
@@ -656,8 +1030,8 @@
         const p = Object.fromEntries(new FormData(e.target).entries());
         p.address = Number(p.address); p.length = Number(p.length);
         p.scale = Number(p.scale); p.precision = Number(p.precision);
-        try { await fetchJson('/api/registers', { method: 'POST', body: JSON.stringify(p) }); e.target.reset(); await refresh(); }
-        catch (err) { setDebug(err); }
+        try { await fetchJson('/api/registers', { method: 'POST', body: JSON.stringify(p) }); e.target.reset(); await refresh(); showAlert(t('common.saved'), 'success'); }
+        catch (err) { setDebug(err); showAlert(errorMessage(err)); }
       });
 
       document.getElementById('profile-form').addEventListener('submit', async (e) => {
@@ -666,8 +1040,8 @@
         try {
           p.sourceDefaults = JSON.parse(p.sourceDefaults || '{}');
           p.registerTemplates = JSON.parse(p.registerTemplates || '[]');
-          await fetchJson('/api/profiles', { method: 'POST', body: JSON.stringify(p) }); e.target.reset(); await refresh();
-        } catch (err) { setDebug(err); }
+          await fetchJson('/api/profiles', { method: 'POST', body: JSON.stringify(p) }); e.target.reset(); await refresh(); showAlert(t('common.saved'), 'success');
+        } catch (err) { setDebug(err); showAlert(errorMessage(err)); }
       });
 
       document.getElementById('poll-once').addEventListener('click', async () => {
@@ -722,9 +1096,739 @@
         finally { e.target.value = ''; }
       });
 
+      // ── Bridge helpers ────────────────────────────────────────────
+      function renderBridgeServer(status) {
+        const badge = document.getElementById('bridge-server-badge');
+        if (status.running) {
+          badge.className   = 'badge running';
+          badge.textContent = t('bridge.server.running');
+        } else {
+          badge.className   = 'badge stopped';
+          badge.textContent = t('bridge.server.stopped');
+        }
+        const cc = document.getElementById('bridge-server-clients');
+        cc.textContent = status.running ? `${status.clientCount} ${t('bridge.server.clients')}` : '';
+      }
+
+      function populateBridgeServerForm(settings) {
+        document.getElementById('bridge-host').value    = settings.host || '0.0.0.0';
+        document.getElementById('bridge-port').value    = settings.port || 5020;
+        document.getElementById('bridge-enabled').checked = !!settings.enabled;
+      }
+
+      function renderMappingStatus(bridge) {
+        const states = Object.values(bridge.mappingStates || {});
+        const el = document.getElementById('bridge-mapping-status');
+        if (states.length === 0) {
+          el.innerHTML = `<p class="no-data hint">${esc(t('bridge.mapping.noMappings'))}</p>`;
+          return;
+        }
+        const rows = states.map(s => {
+          const errHtml = s.error
+            ? `<span class="err" title="${esc(s.error)}">&#9888; ${esc(s.error.slice(0,50))}</span>`
+            : '<span class="ok">&mdash;</span>';
+          return `<tr class="${s.error ? 'row-err' : ''}">
+            <td>${esc(s.label || s.mappingId || '')}</td>
+            <td class="hint">${esc(s.sourceName || '')}</td>
+            <td>${s.sourceValue != null ? esc(String(s.sourceValue)) : '<span class="hint">&mdash;</span>'}</td>
+            <td><strong>${s.transformedValue != null ? esc(String(s.transformedValue)) : '<span class="hint">&mdash;</span>'}</strong></td>
+            <td class="hint">${s.externalAddress != null ? s.externalAddress : ''}</td>
+            <td class="hint">${fmtTime(s.lastUpdatedAt)}</td>
+            <td>${errHtml}</td>
+          </tr>`;
+        }).join('');
+        el.innerHTML = `<table class="rt-table"><thead><tr>
+          <th>${t('bridge.mapping.label')}</th>
+          <th>${t('runtime.table.name')}</th>
+          <th>${t('bridge.mapping.source')}</th>
+          <th>${t('bridge.mapping.transformed')}</th>
+          <th>${t('bridge.mapping.output')}</th>
+          <th>${t('bridge.mapping.lastUpdated')}</th>
+          <th>${t('bridge.mapping.error')}</th>
+        </tr></thead><tbody>${rows}</tbody></table>`;
+      }
+
+      function renderWriteStatus(bridge) {
+        const states = Object.values(bridge.writeStates || {});
+        const el = document.getElementById('bridge-write-status');
+        if (states.length === 0) {
+          el.innerHTML = `<p class="no-data hint">${esc(t('bridge.write.noWrites'))}</p>`;
+          return;
+        }
+        const rows = states.map(s => {
+          const errHtml = s.error
+            ? `<span class="err" title="${esc(s.error)}">&#9888; ${esc(s.error.slice(0,50))}</span>`
+            : '<span class="ok">&mdash;</span>';
+          return `<tr class="${s.error ? 'row-err' : ''}">
+            <td>${esc(s.label || s.mappingId || '')}</td>
+            <td class="hint">${s.externalAddress != null ? s.externalAddress : ''}</td>
+            <td>${s.receivedValue != null ? esc(String(s.receivedValue)) : '&mdash;'}</td>
+            <td><strong>${s.writtenValue != null ? esc(String(s.writtenValue)) : '&mdash;'}</strong></td>
+            <td class="hint">${s.targetAddress != null ? s.targetAddress : ''}</td>
+            <td class="hint">${fmtTime(s.lastWriteAt)}</td>
+            <td>${errHtml}</td>
+          </tr>`;
+        }).join('');
+        el.innerHTML = `<table class="rt-table"><thead><tr>
+          <th>${t('bridge.write.mapping')}</th>
+          <th>${t('bridge.mapping.output')}</th>
+          <th>${t('bridge.write.received')}</th>
+          <th>${t('bridge.write.written')}</th>
+          <th>${t('bridge.write.target')}</th>
+          <th>${t('bridge.write.lastWrite')}</th>
+          <th>${t('bridge.mapping.error')}</th>
+        </tr></thead><tbody>${rows}</tbody></table>`;
+      }
+
+      function renderWatchdogStatus(watchdogStates) {
+        const states = Object.values(watchdogStates || {});
+        const el = document.getElementById('watchdog-status');
+        if (states.length === 0) { el.innerHTML = ''; return; }
+        const stateClass = { ok: 'ok', stale: 'err', error: 'err', disabled: 'hint' };
+        const rows = states.map(s => {
+          const cls = stateClass[s.state] || 'hint';
+          return `<tr>
+            <td>${esc(s.label || s.watchdogId || '')}</td>
+            <td><span class="${cls}">${esc(t('watchdog.state.' + s.state) || s.state)}</span></td>
+            <td class="hint">${fmtTime(s.lastChangedAt)}</td>
+            <td class="hint">${s.lastValue != null ? esc(String(s.lastValue)) : '&mdash;'}</td>
+          </tr>`;
+        }).join('');
+        el.innerHTML = `<table class="rt-table"><thead><tr>
+          <th>${t('watchdog.status.label')}</th>
+          <th>${t('watchdog.status.state')}</th>
+          <th>${t('watchdog.status.lastChanged')}</th>
+          <th>${t('watchdog.status.lastValue')}</th>
+        </tr></thead><tbody>${rows}</tbody></table>`;
+      }
+
+      async function refreshBridge() {
+        try {
+          const status = await fetchJson('/api/bridge/status');
+          renderBridgeServer(status.server);
+          renderMappingStatus(status.bridge);
+          renderWriteStatus(status.bridge);
+          renderWatchdogStatus(status.watchdog);
+        } catch { /* non-fatal */ }
+      }
+
+      // Bridge server form
+      document.getElementById('bridge-server-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const data = { host: document.getElementById('bridge-host').value,
+          port: Number(document.getElementById('bridge-port').value),
+          enabled: document.getElementById('bridge-enabled').checked };
+        try {
+          const result = await fetchJson('/api/bridge/server/settings', { method: 'PUT', body: JSON.stringify(data) });
+          populateBridgeServerForm(result);
+          setDebug(result);
+          showAlert(t('common.saved'), 'success');
+        } catch (err) { setDebug(err); showAlert(errorMessage(err)); }
+      });
+
+      document.getElementById('bridge-start-btn').addEventListener('click', async () => {
+        try { const r = await fetchJson('/api/bridge/server/start', { method: 'POST' }); renderBridgeServer(r); setDebug(r); }
+        catch (err) { setDebug(err); }
+      });
+
+      document.getElementById('bridge-stop-btn').addEventListener('click', async () => {
+        try { const r = await fetchJson('/api/bridge/server/stop', { method: 'POST' }); renderBridgeServer(r); setDebug(r); }
+        catch (err) { setDebug(err); }
+      });
+
+      // Refresh bridge config (external registers, mappings, watchdogs, bridge status)
+      async function refreshBridgeConfig() {
+        try {
+          const [extregs, mappings, watchdogs, bridgeStatus, bridgeSettings] = await Promise.all([
+            fetchJson('/api/external-registers'),
+            fetchJson('/api/mappings'),
+            fetchJson('/api/watchdogs'),
+            fetchJson('/api/bridge/status'),
+            fetchJson('/api/bridge/server/settings'),
+          ]);
+
+          // Cache for edit functions and dynamic selects
+          _gExtregs  = extregs;
+          _gMappings = mappings;
+          _gWatchdogs = watchdogs;
+          repopulateMqttPubSourceSelect();
+
+          // External register list
+          document.getElementById('extreg-list').innerHTML = extregs.map(r =>
+            `<li><strong>${esc(r.name)}</strong> &mdash; addr&nbsp;${r.address} (${esc(r.dataType)}${r.unit ? ', ' + esc(r.unit) : ''})
+             <span class="hint">${r.writable ? t('extreg.list.writable') : t('extreg.list.readonly')}</span>
+             <button onclick="editExtReg('${r.id}')" style="width:auto;padding:2px 8px;font-size:12px;margin-left:8px;">${t('common.edit')}</button>
+             <button onclick="deleteExtReg('${r.id}')" style="width:auto;padding:2px 8px;font-size:12px;margin-left:4px;">&times;</button></li>`
+          ).join('') || `<li class="hint">${t('extreg.list.none')}</li>`;
+
+          // Mappings list
+          document.getElementById('mapping-list').innerHTML = mappings.map(m => {
+            const srcType = m.sourceType || 'register';
+            const tgtType = m.targetType || 'external';
+            const dirLabel = (srcType === 'register' && tgtType === 'external')
+              ? t('mapping.direction.' + (m.direction === 'internal_to_external' ? 'i2e' : m.direction === 'external_to_internal' ? 'e2i' : 'bidi'))
+              : esc(t('mapping.sourceType.' + srcType) + ' \u2192 ' + t('mapping.targetType.' + tgtType));
+            return `<li><strong>${esc(m.label || m.id)}</strong> &mdash; ${dirLabel}
+             <span class="hint">${m.enabled ? t('list.enabled') : t('list.disabled')}</span>
+             <button onclick="editMapping('${m.id}')" style="width:auto;padding:2px 8px;font-size:12px;margin-left:8px;">${t('common.edit')}</button>
+             <button onclick="deleteMapping('${m.id}')" style="width:auto;padding:2px 8px;font-size:12px;margin-left:4px;">&times;</button></li>`;
+          }).join('') || `<li class="hint">${t('mapping.list.none')}</li>`;
+
+          // Watchdogs list
+          document.getElementById('watchdog-list').innerHTML = watchdogs.map(w =>
+            `<li><strong>${esc(w.label || w.id)}</strong> &mdash; ${w.timeoutMs}&nbsp;ms
+             <span class="hint">${w.enabled ? t('list.enabled') : t('list.disabled')}</span>
+             <button onclick="editWatchdog('${w.id}')" style="width:auto;padding:2px 8px;font-size:12px;margin-left:8px;">${t('common.edit')}</button>
+             <button onclick="deleteWatchdog('${w.id}')" style="width:auto;padding:2px 8px;font-size:12px;margin-left:4px;">&times;</button></li>`
+          ).join('') || `<li class="hint">${t('watchdog.list.none')}</li>`;
+
+          // Populate selects for mapping form
+          const extOpts = extregs.map(r => `<option value="${r.id}">${esc(r.name)} (addr ${r.address})</option>`).join('');
+          document.getElementById('mapping-ext-select').innerHTML  = extOpts || '<option value="">—</option>';
+          document.getElementById('watchdog-ext-select').innerHTML = extOpts || '<option value="">—</option>';
+
+          // Bridge status
+          populateBridgeServerForm(bridgeSettings);
+          renderBridgeServer(bridgeStatus.server);
+          renderMappingStatus(bridgeStatus.bridge);
+          renderWriteStatus(bridgeStatus.bridge);
+          renderWatchdogStatus(bridgeStatus.watchdog);
+        } catch (err) { setDebug(err); }
+      }
+
+      async function deleteExtReg(id) {
+        if (!confirm(t('common.delete') + '?')) return;
+        try { await fetchJson(`/api/external-registers/${id}`, { method: 'DELETE' }); await refreshBridgeConfig(); }
+        catch (err) { setDebug(err); showAlert(errorMessage(err)); }
+      }
+      async function deleteMapping(id) {
+        if (!confirm(t('common.delete') + '?')) return;
+        try { await fetchJson(`/api/mappings/${id}`, { method: 'DELETE' }); await refreshBridgeConfig(); }
+        catch (err) { setDebug(err); showAlert(errorMessage(err)); }
+      }
+      async function deleteWatchdog(id) {
+        if (!confirm(t('common.delete') + '?')) return;
+        try { await fetchJson(`/api/watchdogs/${id}`, { method: 'DELETE' }); await refreshBridgeConfig(); }
+        catch (err) { setDebug(err); showAlert(errorMessage(err)); }
+      }
+
+      // ── Cached entity data for dynamic selects ────────────────────
+      let _gRegisters = [], _gVariables = [], _gExtregs = [], _gWatchdogs = [];
+
+      function repopulateVariableSelects() {
+        const opts = _gVariables.map(v => `<option value="${v.id}">${esc(v.name)}${v.label ? ' — ' + esc(v.label) : ''}</option>`).join('') || '<option value="">—</option>';
+        document.getElementById('mqttsub-var-select').innerHTML = opts;
+        document.getElementById('mapping-src-var-select').innerHTML = opts;
+        document.getElementById('mapping-tgt-var-select').innerHTML = opts;
+        repopulateMqttPubSourceSelect();
+      }
+
+      function repopulateMqttPubSourceSelect() {
+        const type = document.getElementById('mqttpub-src-type').value;
+        let items = [];
+        if (type === 'register')          items = _gRegisters.map(r => ({ id: r.id, label: r.name + ' (' + r.registerType + '@' + r.address + ')' }));
+        else if (type === 'variable')     items = _gVariables.map(v => ({ id: v.id, label: v.name }));
+        else if (type === 'external_register') items = _gExtregs.map(r => ({ id: r.id, label: r.name + ' (addr ' + r.address + ')' }));
+        else if (type === 'watchdog')     items = _gWatchdogs.map(w => ({ id: w.id, label: w.label || w.id }));
+        document.getElementById('mqttpub-src-select').innerHTML =
+          items.map(i => `<option value="${i.id}">${esc(i.label)}</option>`).join('') || '<option value="">—</option>';
+      }
+
+      document.getElementById('mqttpub-src-type').addEventListener('change', repopulateMqttPubSourceSelect);
+
+      // ── Mapping form field toggling ───────────────────────────────
+      function toggleMappingFields() {
+        const srcType = document.getElementById('mapping-src-type').value;
+        const tgtType = document.getElementById('mapping-tgt-type').value;
+        document.getElementById('mapping-src-reg-row').style.display  = srcType === 'register' ? '' : 'none';
+        document.getElementById('mapping-src-var-row').style.display  = srcType === 'variable' ? '' : 'none';
+        document.getElementById('mapping-tgt-ext-row').style.display  = tgtType === 'external' ? '' : 'none';
+        document.getElementById('mapping-tgt-var-row').style.display  = tgtType === 'variable' ? '' : 'none';
+        document.getElementById('mapping-tgt-int-row').style.display  = tgtType === 'internal' ? '' : 'none';
+        document.getElementById('mapping-direction-row').style.display = (srcType === 'register' && tgtType === 'external') ? '' : 'none';
+      }
+      document.getElementById('mapping-src-type').addEventListener('change', toggleMappingFields);
+      document.getElementById('mapping-tgt-type').addEventListener('change', toggleMappingFields);
+
+      // ── Edit state ────────────────────────────────────────────────
+      let _editExtRegId = null, _editMappingId = null, _editWatchdogId = null;
+      let _editVarId = null, _editMqttSubId = null, _editMqttPubId = null;
+
+      function editExtReg(id) {
+        const item = _gExtregs.find(r => r.id === id);
+        if (!item) return;
+        _editExtRegId = id;
+        const f = document.getElementById('extreg-form');
+        f.name.value        = item.name || '';
+        f.address.value     = item.address ?? 0;
+        f.dataType.value    = item.dataType || 'uint16';
+        f.unit.value        = item.unit || '';
+        f.description.value = item.description || '';
+        document.getElementById('extreg-writable').checked = !!item.writable;
+        document.getElementById('extreg-submit-btn').textContent = t('common.edit');
+        document.getElementById('extreg-cancel-btn').style.display = '';
+        f.scrollIntoView({ behavior: 'smooth' });
+      }
+
+      document.getElementById('extreg-cancel-btn').addEventListener('click', () => {
+        _editExtRegId = null;
+        document.getElementById('extreg-form').reset();
+        document.getElementById('extreg-submit-btn').textContent = t('extreg.form.save');
+        document.getElementById('extreg-cancel-btn').style.display = 'none';
+      });
+
+      function editMapping(id) {
+        const item = _gMappings.find(m => m.id === id);
+        if (!item) return;
+        _editMappingId = id;
+        const f = document.getElementById('mapping-form');
+        f.label.value        = item.label || '';
+        f.description.value  = item.description || '';
+        f.transforms.value   = JSON.stringify(item.transforms || []);
+        document.getElementById('mapping-enabled').checked = item.enabled !== false;
+        const srcType = item.sourceType || 'register';
+        const tgtType = item.targetType || 'external';
+        document.getElementById('mapping-src-type').value = srcType;
+        document.getElementById('mapping-tgt-type').value = tgtType;
+        toggleMappingFields();
+        if (srcType === 'register' && item.sourceRegisterId) document.getElementById('mapping-src-select').value = item.sourceRegisterId;
+        if (srcType === 'variable' && item.sourceId) document.getElementById('mapping-src-var-select').value = item.sourceId;
+        if (tgtType === 'external' && item.externalRegisterId) document.getElementById('mapping-ext-select').value = item.externalRegisterId;
+        if (tgtType === 'variable' && item.targetId) document.getElementById('mapping-tgt-var-select').value = item.targetId;
+        if (tgtType === 'internal' && item.targetId) document.getElementById('mapping-tgt-int-input').value = item.targetId;
+        if (item.direction) f.direction.value = item.direction;
+        document.getElementById('mapping-submit-btn').textContent = t('common.edit');
+        document.getElementById('mapping-cancel-btn').style.display = '';
+        f.scrollIntoView({ behavior: 'smooth' });
+      }
+
+      let _gMappings = [];
+      document.getElementById('mapping-cancel-btn').addEventListener('click', () => {
+        _editMappingId = null;
+        document.getElementById('mapping-form').reset();
+        document.getElementById('mapping-submit-btn').textContent = t('mapping.form.save');
+        document.getElementById('mapping-cancel-btn').style.display = 'none';
+        toggleMappingFields();
+      });
+
+      function editWatchdog(id) {
+        const item = _gWatchdogs.find(w => w.id === id);
+        if (!item) return;
+        _editWatchdogId = id;
+        const f = document.getElementById('watchdog-form');
+        f.label.value        = item.label || '';
+        f.timeoutMs.value    = item.timeoutMs || 30000;
+        f.description.value  = item.description || '';
+        document.getElementById('watchdog-enabled').checked = item.enabled !== false;
+        document.getElementById('watchdog-ext-select').value = item.externalRegisterId || '';
+        document.getElementById('watchdog-submit-btn').textContent = t('common.edit');
+        document.getElementById('watchdog-cancel-btn').style.display = '';
+        f.scrollIntoView({ behavior: 'smooth' });
+      }
+
+      document.getElementById('watchdog-cancel-btn').addEventListener('click', () => {
+        _editWatchdogId = null;
+        document.getElementById('watchdog-form').reset();
+        document.getElementById('watchdog-submit-btn').textContent = t('watchdog.form.save');
+        document.getElementById('watchdog-cancel-btn').style.display = 'none';
+      });
+
+      // ── Updated extreg form submit (create or update) ─────────────
+      document.getElementById('extreg-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const p = Object.fromEntries(new FormData(e.target).entries());
+        p.address  = Number(p.address);
+        p.writable = document.getElementById('extreg-writable').checked;
+        p.enabled  = true;
+        try {
+          if (_editExtRegId) {
+            await fetchJson(`/api/external-registers/${_editExtRegId}`, { method: 'PUT', body: JSON.stringify(p) });
+            _editExtRegId = null;
+            document.getElementById('extreg-submit-btn').textContent = t('extreg.form.save');
+            document.getElementById('extreg-cancel-btn').style.display = 'none';
+          } else {
+            await fetchJson('/api/external-registers', { method: 'POST', body: JSON.stringify(p) });
+          }
+          e.target.reset();
+          await refreshBridgeConfig();
+          showAlert(t('common.saved'), 'success');
+        } catch (err) { setDebug(err); showAlert(errorMessage(err)); }
+      });
+
+      // ── Updated mapping form submit (create or update) ────────────
+      document.getElementById('mapping-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const raw = Object.fromEntries(new FormData(e.target).entries());
+        const srcType = document.getElementById('mapping-src-type').value;
+        const tgtType = document.getElementById('mapping-tgt-type').value;
+        const p = {
+          label:       raw.label || '',
+          description: raw.description || '',
+          enabled:     document.getElementById('mapping-enabled').checked,
+          transforms:  JSON.parse(raw.transforms || '[]'),
+          sourceType:  srcType,
+          targetType:  tgtType,
+        };
+        if (srcType === 'register') {
+          p.sourceRegisterId = raw.sourceRegisterId;
+          p.sourceId = raw.sourceRegisterId;
+        } else {
+          p.sourceId = document.getElementById('mapping-src-var-select').value;
+        }
+        if (tgtType === 'external') {
+          p.externalRegisterId = raw.externalRegisterId;
+          p.targetId = raw.externalRegisterId;
+          p.direction = raw.direction;
+        } else if (tgtType === 'variable') {
+          p.targetId = document.getElementById('mapping-tgt-var-select').value;
+        } else {
+          p.targetId = document.getElementById('mapping-tgt-int-input').value;
+        }
+        try {
+          if (_editMappingId) {
+            await fetchJson(`/api/mappings/${_editMappingId}`, { method: 'PUT', body: JSON.stringify(p) });
+            _editMappingId = null;
+            document.getElementById('mapping-submit-btn').textContent = t('mapping.form.save');
+            document.getElementById('mapping-cancel-btn').style.display = 'none';
+          } else {
+            await fetchJson('/api/mappings', { method: 'POST', body: JSON.stringify(p) });
+          }
+          e.target.reset();
+          toggleMappingFields();
+          await refreshBridgeConfig();
+          showAlert(t('common.saved'), 'success');
+        } catch (err) { setDebug(err); showAlert(errorMessage(err)); }
+      });
+
+      // ── Updated watchdog form submit (create or update) ───────────
+      document.getElementById('watchdog-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const p = Object.fromEntries(new FormData(e.target).entries());
+        p.timeoutMs = Number(p.timeoutMs);
+        p.enabled   = document.getElementById('watchdog-enabled').checked;
+        try {
+          if (_editWatchdogId) {
+            await fetchJson(`/api/watchdogs/${_editWatchdogId}`, { method: 'PUT', body: JSON.stringify(p) });
+            _editWatchdogId = null;
+            document.getElementById('watchdog-submit-btn').textContent = t('watchdog.form.save');
+            document.getElementById('watchdog-cancel-btn').style.display = 'none';
+          } else {
+            await fetchJson('/api/watchdogs', { method: 'POST', body: JSON.stringify(p) });
+          }
+          e.target.reset();
+          await refreshBridgeConfig();
+          showAlert(t('common.saved'), 'success');
+        } catch (err) { setDebug(err); showAlert(errorMessage(err)); }
+      });
+
+      // ── Virtual variable functions ────────────────────────────────
+      document.getElementById('var-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const p = Object.fromEntries(new FormData(e.target).entries());
+        p.writable = document.getElementById('var-writable').checked;
+        p.enabled  = document.getElementById('var-enabled').checked;
+        if (p.initialValue === '') delete p.initialValue;
+        try {
+          if (_editVarId) {
+            await fetchJson(`/api/variables/${_editVarId}`, { method: 'PUT', body: JSON.stringify(p) });
+            _editVarId = null;
+            document.getElementById('var-submit-btn').textContent = t('var.form.save');
+            document.getElementById('var-cancel-btn').style.display = 'none';
+          } else {
+            await fetchJson('/api/variables', { method: 'POST', body: JSON.stringify(p) });
+          }
+          e.target.reset();
+          await refreshVariables();
+          showAlert(t('common.saved'), 'success');
+        } catch (err) { setDebug(err); showAlert(errorMessage(err)); }
+      });
+
+      document.getElementById('var-cancel-btn').addEventListener('click', () => {
+        _editVarId = null;
+        document.getElementById('var-form').reset();
+        document.getElementById('var-submit-btn').textContent = t('var.form.save');
+        document.getElementById('var-cancel-btn').style.display = 'none';
+      });
+
+      function editVariable(id) {
+        const item = _gVariables.find(v => v.id === id);
+        if (!item) return;
+        _editVarId = id;
+        const f = document.getElementById('var-form');
+        f.name.value         = item.name || '';
+        f.label.value        = item.label || '';
+        f.dataType.value     = item.dataType || 'float32';
+        f.unit.value         = item.unit || '';
+        f.initialValue.value = item.initialValue ?? '';
+        f.description.value  = item.description || '';
+        document.getElementById('var-writable').checked = item.writable !== false;
+        document.getElementById('var-enabled').checked  = item.enabled !== false;
+        document.getElementById('var-submit-btn').textContent = t('common.edit');
+        document.getElementById('var-cancel-btn').style.display = '';
+        f.scrollIntoView({ behavior: 'smooth' });
+      }
+
+      async function setVarValue(id) {
+        const val = prompt(t('var.form.setValue') + ':');
+        if (val === null) return;
+        try { await fetchJson(`/api/variables/${id}/value`, { method: 'PATCH', body: JSON.stringify({ value: isNaN(val) ? val : Number(val) }) }); await refreshVariables(); }
+        catch (err) { setDebug(err); }
+      }
+
+      async function deleteVariable(id) {
+        if (!confirm(t('common.delete') + '?')) return;
+        try { await fetchJson(`/api/variables/${id}`, { method: 'DELETE' }); await refreshVariables(); }
+        catch (err) { setDebug(err); showAlert(errorMessage(err)); }
+      }
+
+      function renderVariableList(vars) {
+        document.getElementById('var-list').innerHTML = vars.map(v =>
+          `<li><strong>${esc(v.name)}</strong>${v.label ? ' — ' + esc(v.label) : ''} <span class="hint">(${esc(v.dataType)}${v.unit ? ', ' + esc(v.unit) : ''})</span>
+           <span class="hint">${v.enabled ? t('list.enabled') : t('list.disabled')}</span>
+           ${v.writable ? `<button onclick="setVarValue('${v.id}')" style="width:auto;padding:2px 8px;font-size:12px;margin-left:4px;">=</button>` : ''}
+           <button onclick="editVariable('${v.id}')" style="width:auto;padding:2px 8px;font-size:12px;margin-left:4px;">${t('common.edit')}</button>
+           <button onclick="deleteVariable('${v.id}')" style="width:auto;padding:2px 8px;font-size:12px;margin-left:4px;">&times;</button></li>`
+        ).join('') || `<li class="hint">${t('var.list.none')}</li>`;
+      }
+
+      function renderVariableStatus(states) {
+        const list = Array.isArray(states) ? states : Object.values(states || {});
+        if (list.length === 0) { document.getElementById('var-status').innerHTML = ''; return; }
+        const rows = list.map(s => {
+          const errHtml = s.error ? `<span class="err">${esc(s.error.slice(0, 50))}</span>` : '<span class="ok">&mdash;</span>';
+          return `<tr>
+            <td>${esc(s.name || s.variableId || '')}</td>
+            <td><strong>${s.currentValue != null ? esc(String(s.currentValue)) : '<span class="hint">&mdash;</span>'}</strong></td>
+            <td class="hint">${esc(t('var.source.' + (s.source || 'system')) || s.source || '')}</td>
+            <td class="hint">${fmtTime(s.lastUpdatedAt)}</td>
+            <td>${errHtml}</td>
+          </tr>`;
+        }).join('');
+        document.getElementById('var-status').innerHTML = `<table class="rt-table"><thead><tr>
+          <th>${t('var.status.name')}</th><th>${t('var.status.value')}</th>
+          <th>${t('var.status.source')}</th><th>${t('var.status.lastUpdated')}</th>
+          <th>${t('var.status.error')}</th>
+        </tr></thead><tbody>${rows}</tbody></table>`;
+      }
+
+      async function refreshVariables() {
+        try {
+          const vars = await fetchJson('/api/variables');
+          _gVariables = vars;
+          renderVariableList(vars);
+          renderVariableStatus(vars);
+          repopulateVariableSelects();
+        } catch (err) { setDebug(err); }
+      }
+
+      // ── MQTT functions ────────────────────────────────────────────
+      function renderMqttStatus(status) {
+        const badge = document.getElementById('mqtt-status-badge');
+        const statusMap = {
+          connected:    { cls: 'running',  icon: '\u25cf ' },
+          connecting:   { cls: 'hint',     icon: '\u25cc ' },
+          disconnected: { cls: 'stopped',  icon: '\u25cb ' },
+          error:        { cls: 'stopped',  icon: '\u2715 ' },
+          disabled:     { cls: 'disabled', icon: '\u25a1 ' },
+        };
+        const entry = statusMap[status.status] || statusMap.disconnected;
+        badge.className   = 'badge ' + entry.cls;
+        badge.textContent = entry.icon + t('mqtt.status.' + (status.status || 'disabled'));
+        const errEl = document.getElementById('mqtt-last-error');
+        errEl.textContent = status.lastError ? t('mqtt.lastError') + ' ' + status.lastError : '';
+      }
+
+      function populateMqttConfigForm(cfg) {
+        const f = document.getElementById('mqtt-config-form');
+        f.host.value        = cfg.host || 'localhost';
+        f.port.value        = cfg.port || 1883;
+        f.clientId.value    = cfg.clientId || 'modbus-bridge';
+        f.baseTopic.value   = cfg.baseTopic || 'modbus-bridge';
+        f.username.value    = cfg.username || '';
+        f.keepalive.value   = cfg.keepalive || 60;
+        f.reconnectMs.value = cfg.reconnectMs || 5000;
+        document.getElementById('mqtt-enabled').checked = !!cfg.enabled;
+        document.getElementById('mqtt-tls').checked     = !!cfg.tls;
+      }
+
+      document.getElementById('mqtt-config-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const p = Object.fromEntries(new FormData(e.target).entries());
+        p.port        = Number(p.port);
+        p.keepalive   = Number(p.keepalive);
+        p.reconnectMs = Number(p.reconnectMs);
+        p.enabled     = document.getElementById('mqtt-enabled').checked;
+        p.tls         = document.getElementById('mqtt-tls').checked;
+        if (!p.password) delete p.password;
+        try {
+          const result = await fetchJson('/api/mqtt/config', { method: 'PUT', body: JSON.stringify(p) });
+          populateMqttConfigForm(result);
+          setDebug(result);
+          showAlert(t('common.saved'), 'success');
+        } catch (err) { setDebug(err); showAlert(errorMessage(err)); }
+      });
+
+      document.getElementById('mqtt-connect-btn').addEventListener('click', async () => {
+        try { const r = await fetchJson('/api/mqtt/connect', { method: 'POST' }); renderMqttStatus(r); setDebug(r); setTimeout(refreshMqtt, 1500); }
+        catch (err) { setDebug(err); }
+      });
+      document.getElementById('mqtt-disconnect-btn').addEventListener('click', async () => {
+        try { const r = await fetchJson('/api/mqtt/disconnect', { method: 'POST' }); renderMqttStatus(r); setDebug(r); }
+        catch (err) { setDebug(err); }
+      });
+      document.getElementById('mqtt-reconnect-btn').addEventListener('click', async () => {
+        try { const r = await fetchJson('/api/mqtt/reconnect', { method: 'POST' }); renderMqttStatus(r); setDebug(r); setTimeout(refreshMqtt, 1500); }
+        catch (err) { setDebug(err); }
+      });
+
+      // ── MQTT Subscriptions ────────────────────────────────────────
+      document.getElementById('mqttsub-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const p = Object.fromEntries(new FormData(e.target).entries());
+        p.enabled = document.getElementById('mqttsub-enabled').checked;
+        try {
+          if (_editMqttSubId) {
+            await fetchJson(`/api/mqtt/subscriptions/${_editMqttSubId}`, { method: 'PUT', body: JSON.stringify(p) });
+            _editMqttSubId = null;
+            document.getElementById('mqttsub-submit-btn').textContent = t('mqttsub.form.save');
+            document.getElementById('mqttsub-cancel-btn').style.display = 'none';
+          } else {
+            await fetchJson('/api/mqtt/subscriptions', { method: 'POST', body: JSON.stringify(p) });
+          }
+          e.target.reset();
+          await refreshMqtt();
+          showAlert(t('common.saved'), 'success');
+        } catch (err) { setDebug(err); showAlert(errorMessage(err)); }
+      });
+
+      document.getElementById('mqttsub-cancel-btn').addEventListener('click', () => {
+        _editMqttSubId = null;
+        document.getElementById('mqttsub-form').reset();
+        document.getElementById('mqttsub-submit-btn').textContent = t('mqttsub.form.save');
+        document.getElementById('mqttsub-cancel-btn').style.display = 'none';
+      });
+
+      let _gMqttSubs = [];
+      function editMqttSub(id) {
+        const item = _gMqttSubs.find(s => s.id === id);
+        if (!item) return;
+        _editMqttSubId = id;
+        const f = document.getElementById('mqttsub-form');
+        f.label.value    = item.label || '';
+        f.topic.value    = item.topic || '';
+        f.jsonPath.value = item.jsonPath || '';
+        f.dataType.value = item.dataType || 'float32';
+        document.getElementById('mqttsub-var-select').value     = item.variableId || '';
+        document.getElementById('mqttsub-enabled').checked      = item.enabled !== false;
+        document.getElementById('mqttsub-submit-btn').textContent = t('common.edit');
+        document.getElementById('mqttsub-cancel-btn').style.display = '';
+        f.scrollIntoView({ behavior: 'smooth' });
+      }
+
+      async function deleteMqttSub(id) {
+        if (!confirm(t('common.delete') + '?')) return;
+        try { await fetchJson(`/api/mqtt/subscriptions/${id}`, { method: 'DELETE' }); await refreshMqtt(); }
+        catch (err) { setDebug(err); showAlert(errorMessage(err)); }
+      }
+
+      function renderSubscriptionList(subs) {
+        document.getElementById('mqttsub-list').innerHTML = subs.map(s =>
+          `<li><strong>${esc(s.topic)}</strong>${s.label ? ' — ' + esc(s.label) : ''} <span class="hint">→ ${esc(s.variableId || '?')}</span>
+           <span class="hint">${s.enabled ? t('list.enabled') : t('list.disabled')}</span>
+           <button onclick="editMqttSub('${s.id}')" style="width:auto;padding:2px 8px;font-size:12px;margin-left:4px;">${t('common.edit')}</button>
+           <button onclick="deleteMqttSub('${s.id}')" style="width:auto;padding:2px 8px;font-size:12px;margin-left:4px;">&times;</button></li>`
+        ).join('') || `<li class="hint">${t('mqttsub.list.none')}</li>`;
+      }
+
+      // ── MQTT Publish Rules ────────────────────────────────────────
+      document.getElementById('mqttpub-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const p = Object.fromEntries(new FormData(e.target).entries());
+        p.qos           = Number(p.qos);
+        p.retain        = document.getElementById('mqttpub-retain').checked;
+        p.publishOnChange = document.getElementById('mqttpub-onchange').checked;
+        p.enabled       = document.getElementById('mqttpub-enabled').checked;
+        try {
+          if (_editMqttPubId) {
+            await fetchJson(`/api/mqtt-publish-rules/${_editMqttPubId}`, { method: 'PUT', body: JSON.stringify(p) });
+            _editMqttPubId = null;
+            document.getElementById('mqttpub-submit-btn').textContent = t('mqttpub.form.save');
+            document.getElementById('mqttpub-cancel-btn').style.display = 'none';
+          } else {
+            await fetchJson('/api/mqtt-publish-rules', { method: 'POST', body: JSON.stringify(p) });
+          }
+          e.target.reset();
+          await refreshMqtt();
+          showAlert(t('common.saved'), 'success');
+        } catch (err) { setDebug(err); showAlert(errorMessage(err)); }
+      });
+
+      document.getElementById('mqttpub-cancel-btn').addEventListener('click', () => {
+        _editMqttPubId = null;
+        document.getElementById('mqttpub-form').reset();
+        document.getElementById('mqttpub-submit-btn').textContent = t('mqttpub.form.save');
+        document.getElementById('mqttpub-cancel-btn').style.display = 'none';
+      });
+
+      let _gMqttPubs = [];
+      function editMqttPub(id) {
+        const item = _gMqttPubs.find(r => r.id === id);
+        if (!item) return;
+        _editMqttPubId = id;
+        const f = document.getElementById('mqttpub-form');
+        f.label.value   = item.label || '';
+        f.topic.value   = item.topic || '';
+        f.qos.value     = item.qos ?? 0;
+        document.getElementById('mqttpub-src-type').value = item.sourceType || 'register';
+        repopulateMqttPubSourceSelect();
+        document.getElementById('mqttpub-src-select').value = item.sourceId || '';
+        document.getElementById('mqttpub-retain').checked       = !!item.retain;
+        document.getElementById('mqttpub-onchange').checked     = item.publishOnChange !== false;
+        document.getElementById('mqttpub-enabled').checked      = item.enabled !== false;
+        document.getElementById('mqttpub-submit-btn').textContent = t('common.edit');
+        document.getElementById('mqttpub-cancel-btn').style.display = '';
+        f.scrollIntoView({ behavior: 'smooth' });
+      }
+
+      async function deleteMqttPub(id) {
+        if (!confirm(t('common.delete') + '?')) return;
+        try { await fetchJson(`/api/mqtt-publish-rules/${id}`, { method: 'DELETE' }); await refreshMqtt(); }
+        catch (err) { setDebug(err); showAlert(errorMessage(err)); }
+      }
+
+      function renderPublishRuleList(rules) {
+        document.getElementById('mqttpub-list').innerHTML = rules.map(r =>
+          `<li><strong>${esc(r.topic)}</strong>${r.label ? ' — ' + esc(r.label) : ''} <span class="hint">${esc(t('mqttpub.sourceType.' + r.sourceType) || r.sourceType)}</span>
+           <span class="hint">${r.enabled ? t('list.enabled') : t('list.disabled')}</span>
+           <button onclick="editMqttPub('${r.id}')" style="width:auto;padding:2px 8px;font-size:12px;margin-left:4px;">${t('common.edit')}</button>
+           <button onclick="deleteMqttPub('${r.id}')" style="width:auto;padding:2px 8px;font-size:12px;margin-left:4px;">&times;</button></li>`
+        ).join('') || `<li class="hint">${t('mqttpub.list.none')}</li>`;
+      }
+
+      async function refreshMqtt() {
+        try {
+          const [cfg, status, subs, rules] = await Promise.all([
+            fetchJson('/api/mqtt/config'),
+            fetchJson('/api/mqtt/status'),
+            fetchJson('/api/mqtt/subscriptions'),
+            fetchJson('/api/mqtt-publish-rules'),
+          ]);
+          populateMqttConfigForm(cfg);
+          renderMqttStatus(status);
+          _gMqttSubs = subs;
+          _gMqttPubs = rules;
+          renderSubscriptionList(subs);
+          renderPublishRuleList(rules);
+        } catch (err) { setDebug(err); }
+      }
+
       // ── Init ──────────────────────────────────────────────────────
       applyTranslations();
+      toggleMappingFields();
       refresh().catch(setDebug);
+      refreshBridgeConfig().catch(setDebug);
+      refreshVariables().catch(setDebug);
+      refreshMqtt().catch(setDebug);
     </script>
   </body>
 </html>

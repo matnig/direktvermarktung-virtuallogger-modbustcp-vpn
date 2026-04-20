@@ -102,6 +102,14 @@ cp .env.example .env
 - **Export / Import** — full configuration snapshot as a single JSON file
 - **VPN Settings** — store and manage an OpenVPN configuration through the web UI; connect / disconnect from the UI; connection state tracked in memory
 - **Language switch** — UI supports English and German; selected language is persisted in `localStorage`
+- **Bridge / virtual Modbus server** — exposes a Modbus TCP server on a configurable port (default 5020) so external systems can read live internal values
+- **Mappings** — link internal source registers to external server registers; direction: `internal_to_external`, `external_to_internal`, or `bidirectional`
+- **Transform pipeline** — per-mapping ordered steps: `scale`, `offset`, `invert`, `clamp`, `abs`
+- **Write forwarding** — values written by external Modbus clients are decoded, transformed, and forwarded to internal Modbus holding registers
+- **Watchdogs** — monitor selected external registers; UI alert when value has not changed within a configurable timeout (`ok` / `stale` / `disabled` / `error`)
+- **Virtual Variables** — named, typed in-memory variables (float32 / uint16 / int16 / uint32 / int32 / bool / string); readable and writable by mappings and MQTT; manually settable from the UI
+- **MQTT integration** — connect to any MQTT broker; publish internal registers, external registers, virtual variables, or watchdog states on change; subscribe to topics to ingest values into virtual variables (JSON path extraction, transforms, type coercion)
+- **Mapping extensions** — mappings now support variable sources (`sourceType: variable`) and variable or internal-register targets (`targetType: variable | internal`)
 
 ---
 
@@ -133,6 +141,42 @@ cp .env.example .env
 | POST | `/api/vpn/connect` | Spawn OpenVPN using the stored profile; poll GET for state |
 | POST | `/api/vpn/disconnect` | Stop the active OpenVPN process |
 | GET | `/api/health` | Health check |
+| GET | `/api/external-registers` | List external (server-side) registers |
+| POST | `/api/external-registers` | Create an external register |
+| PUT | `/api/external-registers/:id` | Update an external register |
+| DELETE | `/api/external-registers/:id` | Delete an external register |
+| GET | `/api/mappings` | List mappings |
+| POST | `/api/mappings` | Create a mapping |
+| PUT | `/api/mappings/:id` | Update a mapping |
+| DELETE | `/api/mappings/:id` | Delete a mapping |
+| GET | `/api/watchdogs` | List watchdogs |
+| POST | `/api/watchdogs` | Create a watchdog |
+| PUT | `/api/watchdogs/:id` | Update a watchdog |
+| DELETE | `/api/watchdogs/:id` | Delete a watchdog |
+| GET | `/api/bridge/status` | Bridge runtime: server status + mapping + watchdog states |
+| GET | `/api/bridge/server/settings` | External Modbus server settings |
+| PUT | `/api/bridge/server/settings` | Update external server settings |
+| POST | `/api/bridge/server/start` | Start the external Modbus TCP server |
+| POST | `/api/bridge/server/stop` | Stop the external Modbus TCP server |
+| GET | `/api/variables` | List virtual variables (merged with live runtime state) |
+| POST | `/api/variables` | Create a virtual variable |
+| PUT | `/api/variables/:id` | Update a virtual variable |
+| PATCH | `/api/variables/:id/value` | Manually set a variable value |
+| DELETE | `/api/variables/:id` | Delete a variable (blocked if referenced by mappings or subscriptions) |
+| GET | `/api/mqtt/config` | MQTT broker configuration (password masked) |
+| PUT | `/api/mqtt/config` | Update MQTT broker settings |
+| GET | `/api/mqtt/status` | MQTT connection status |
+| POST | `/api/mqtt/connect` | Connect to MQTT broker |
+| POST | `/api/mqtt/disconnect` | Disconnect from MQTT broker |
+| POST | `/api/mqtt/reconnect` | Force reconnect |
+| GET | `/api/mqtt/subscriptions` | List MQTT subscriptions |
+| POST | `/api/mqtt/subscriptions` | Create an MQTT subscription |
+| PUT | `/api/mqtt/subscriptions/:id` | Update an MQTT subscription |
+| DELETE | `/api/mqtt/subscriptions/:id` | Delete an MQTT subscription |
+| GET | `/api/mqtt-publish-rules` | List MQTT publish rules |
+| POST | `/api/mqtt-publish-rules` | Create a publish rule |
+| PUT | `/api/mqtt-publish-rules/:id` | Update a publish rule |
+| DELETE | `/api/mqtt-publish-rules/:id` | Delete a publish rule |
 
 ---
 
@@ -143,13 +187,13 @@ src/
   app/           Express setup and startup
   api/           Route handlers
   config/        Environment config
-  domain/        Domain model classes
+  domain/        Domain model classes (Source, Register, Mapping, ExternalRegister, Watchdog, VirtualVariable, MqttConfig, MqttSubscription, MqttPublishRule)
   middleware/    Error handler
-  modbus/        Modbus TCP client and value decoder
+  modbus/        Modbus TCP client, server, value encoder/decoder/transformer
   persistence/   JSON file store
     data/        Runtime JSON files (auto-created, gitignored)
-  repositories/  Data access layer
-  services/      Business logic and runtime polling engine
+  repositories/  Data access layer (all entity types)
+  services/      Business logic: polling, bridge, watchdog, VPN, external server, MQTT, variables
   validation/    Input validation
 public/
   public_index.html   Web UI
@@ -172,6 +216,14 @@ Configuration is stored as JSON files under `src/persistence/data/` (or the path
 | `vpn.json` | VPN settings + uploaded file metadata (no credentials, no file content) |
 | `vpn_secrets.json` | VPN password and passphrase (excluded from export/import) |
 | `vpn-profile.ovpn` | Stored OpenVPN profile file (excluded from export/import, mode 0600) |
+| `external_registers.json` | External (server-side) register definitions |
+| `mappings.json` | Mapping rules (register↔register, register↔variable, variable↔internal) |
+| `watchdogs.json` | Watchdog definitions |
+| `external_server_settings.json` | External Modbus TCP server host/port/enabled |
+| `virtual_variables.json` | Virtual variable definitions |
+| `mqtt_subscriptions.json` | MQTT subscription rules (topic → variable) |
+| `mqtt_publish_rules.json` | MQTT publish rules (source → topic) |
+| `mqtt_config.json` | MQTT broker connection settings (password stored in plaintext) |
 
 Files are created automatically on first run. They are gitignored — each environment gets its own fresh data.
 
@@ -198,3 +250,20 @@ Files are created automatically on first run. They are gitignored — each envir
 - **VPN — secrets at rest**: Password and passphrase are stored in plaintext in `vpn_secrets.json`. This file is excluded from export snapshots but is not encrypted.
 - **VPN — content limit**: Profile content is limited to 100 KB. Upload validation checks for known OpenVPN config keywords; unusual or custom `.ovpn` dialects may be rejected.
 - **i18n**: All main UI labels are translated (EN/DE). Server-side validation error messages are in English only.
+- **Bridge — Modbus server protocol**: The external server supports FC03 (read holding registers), FC06 (write single register), FC16 (write multiple registers) only. Coil / discrete-input / input registers are not exposed externally.
+- **Bridge — write forwarding**: Write forwarding to internal devices only supports `holding` register type. Coil writes are not implemented.
+- **Bridge — transform direction**: One `transforms` array per mapping applies in both forward and reverse directions. Configure separate mappings with distinct transforms if asymmetric transformation is needed.
+- **Bridge — server port**: Default listen port is 5020 (non-privileged). Standard Modbus port 502 requires root on Linux.
+- **Bridge — connection state**: External server client count and bridge mapping states are in-memory and reset on restart.
+- **Watchdog — actions**: Currently only tracks `ok` / `stale` state with UI alert. Automated actions (relay write, alarm trigger) are not yet implemented.
+- **MQTT — password at rest**: The MQTT broker password is stored in plaintext in `mqtt_config.json`. It is included in export/import snapshots.
+- **MQTT — TLS**: TLS flag is passed to the `mqtt` client but no certificate validation or client-cert options are exposed in the UI.
+- **MQTT — QoS**: QoS 1/2 require a persistent session. The current client uses `clean: true`; messages may be lost on reconnect for QoS > 0 subscriptions.
+- **Virtual variables — persistence**: Variable runtime values (currentValue, source, lastUpdatedAt) are in-memory and reset on server restart. Only the definition (name, dataType, initialValue) persists.
+- **Virtual variables — string type**: The `string` dataType bypasses the numeric encode/decode pipeline. Transforms (scale, offset, clamp) have no effect on string variables.
+- **Referential integrity**: DELETE requests are blocked at the API level when an entity is still referenced by another (e.g. deleting an external register that is used by a mapping or watchdog). The UI shows the error as a toast and in the debug panel; referenced entities must be deleted first.
+- **Data file recovery**: On startup, corrupt JSON data files (truncated or invalid JSON) are automatically replaced with the default empty collection and a warning is logged. Any data in the corrupt file is lost; restore from an export snapshot if needed.
+- **Atomic writes**: All JSON data file writes use an atomic write-then-rename sequence to prevent partial-write corruption on power loss or crash. A `.tmp` file in the data directory is created transiently during each write.
+- **Startup order**: The external Modbus server must be fully initialised before the bridge and watchdog polling loops start. A crash or timeout during `initServer()` will prevent bridge/watchdog from starting; the HTTP API remains available.
+- **Transform safety**: Scale and offset transforms throw an error if the result is non-finite (e.g. scaling by `Infinity`). The mapping is placed in error state until the transform configuration is corrected. Clamp bounds that are not finite numbers are silently ignored.
+- **MQTT path extraction**: The `jsonPath` extraction for MQTT subscriptions blocks traversal through `__proto__`, `constructor`, and `prototype` keys to prevent prototype pollution.
