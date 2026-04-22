@@ -13,6 +13,7 @@ const bridgeRoutes           = require('./routes/bridgeRoutes');
 const virtualVariableRoutes  = require('./routes/virtualVariableRoutes');
 const mqttRoutes             = require('./routes/mqttRoutes');
 const mqttPublishRuleRoutes  = require('./routes/mqttPublishRuleRoutes');
+const networkRoutes          = require('./routes/networkRoutes');
 const { DATA_TYPES, REGISTER_TYPES } = require('../validation/registerValidation');
 
 const router = express.Router();
@@ -42,5 +43,6 @@ router.use('/bridge',             bridgeRoutes);
 router.use('/variables',          virtualVariableRoutes);
 router.use('/mqtt',               mqttRoutes);
 router.use('/mqtt-publish-rules', mqttPublishRuleRoutes);
+router.use('/network',           networkRoutes);
 
 module.exports = router;

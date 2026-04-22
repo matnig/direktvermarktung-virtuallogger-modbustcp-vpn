@@ -144,6 +144,7 @@ cp .env.example .env
 - **Virtual Variables** — named, typed in-memory variables (float32 / uint16 / int16 / uint32 / int32 / bool / string); readable and writable by mappings and MQTT; manually settable from the UI
 - **MQTT integration** — connect to any MQTT broker; publish internal registers, external registers, virtual variables, or watchdog states on change; subscribe to topics to ingest values into virtual variables (JSON path extraction, transforms, type coercion)
 - **Mapping extensions** — mappings now support variable sources (`sourceType: variable`) and variable or internal-register targets (`targetType: variable | internal`)
+- **Network Status** — read-only display of the server's current network configuration (interface, IPv4 address, subnet, gateway, DNS, DHCP/static detection, VPN address); clearly labelled as OS-managed with per-field help texts in EN/DE
 
 ---
 
@@ -211,6 +212,54 @@ cp .env.example .env
 | POST | `/api/mqtt-publish-rules` | Create a publish rule |
 | PUT | `/api/mqtt-publish-rules/:id` | Update a publish rule |
 | DELETE | `/api/mqtt-publish-rules/:id` | Delete a publish rule |
+| GET | `/api/network/status` | Read-only OS network snapshot — see Network Status section for full response shape |
+
+---
+
+## Network Status (read-only)
+
+The **Network Status** panel in the UI shows a live snapshot of the server's network configuration. It is strictly read-only — no settings can be changed here.
+
+Displayed fields:
+
+| Field | Source |
+|-------|--------|
+| Interface | `os.networkInterfaces()` (first non-loopback IPv4 interface) |
+| IPv4 Address | `os.networkInterfaces()` |
+| Subnet / Prefix | `os.networkInterfaces()` (CIDR, e.g. `/24`, or dotted netmask) |
+| Default Gateway | `ip route show default`, fallback `/proc/net/route` |
+| DNS Servers | `/etc/resolv.conf` |
+| Address Mode (DHCP/static) | `ip addr show <iface>` — looks for `dynamic` keyword |
+| VPN Address | `os.networkInterfaces()` — first `tun*`/`tap*` interface |
+
+The VPN address is also shown next to the VPN status badge in the VPN panel when the VPN is connected.
+
+**Response JSON shape** (`GET /api/network/status`):
+
+```json
+{
+  "interface":    "eth0",
+  "address":      "192.168.1.100",
+  "netmask":      "255.255.255.0",
+  "cidr":         "192.168.1.100/24",
+  "gateway":      "192.168.1.1",
+  "dns":          ["192.168.1.1"],
+  "dhcp":         true,
+  "vpnInterface": "tun0",
+  "vpnAddress":   "10.8.0.2",
+  "updatedAt":    "2026-04-22T10:00:00.000Z"
+}
+```
+
+All fields except `updatedAt` and `dns` (always `[]`) may be `null` when not detectable. `dhcp` is `true` (DHCP), `false` (static), or `null` (unknown).
+
+Each field has an **ℹ info button** that expands an explanation of what the value means, where that setting is configured in the OS, and how incorrect values can affect reachability of the app. Info texts are fully translated (EN/DE) and update immediately when the language switcher is used.
+
+**Limitations:**
+- Gateway and DNS detection rely on Linux utilities and files (`ip`, `/proc/net/route`, `/etc/resolv.conf`); on other operating systems these fields may show as unavailable
+- DHCP detection uses the `dynamic` flag in `ip addr` output; NetworkManager managed and systemd-networkd managed interfaces may not always set this flag
+- DNS servers from `/etc/resolv.conf` may show stub-resolver addresses (e.g. `127.0.0.53`) when `systemd-resolved` is active
+- Multiple network interfaces: only the first non-loopback IPv4 interface is shown; multi-homed setups are not fully represented
 
 ---
 

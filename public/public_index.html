@@ -56,6 +56,20 @@
       .btn-connect    { background: #28a745 !important; color: #fff !important; border: none !important; }
       .btn-disconnect { background: #dc3545 !important; color: #fff !important; border: none !important; }
 
+      /* network status panel */
+      .net-table { width: 100%; border-collapse: collapse; font-size: 14px; max-width: 760px; }
+      .net-table td { padding: 7px 10px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+      .net-table tr:last-child td { border-bottom: none; }
+      .net-lbl { font-weight: 600; color: #444; width: 170px; }
+      .net-val { font-family: monospace; font-size: 14px; }
+      .net-val.no-data { color: #aaa; font-family: inherit; font-style: italic; font-size: 13px; }
+      .net-btn-cell { width: 28px; text-align: center; }
+      .info-btn { background: none; border: 1px solid #b0c4de; border-radius: 50%; color: #4a7fc1; cursor: pointer; font-size: 11px; font-weight: bold; padding: 0; width: 20px; height: 20px; line-height: 18px; text-align: center; display: inline-block; flex-shrink: 0; vertical-align: middle; }
+      .info-btn:hover { background: #e8f0fe; border-color: #4a7fc1; }
+      .net-help-row td { background: #f0f5ff; padding: 8px 14px 10px 180px; }
+      .net-help-text { font-size: 13px; color: #333; margin: 0; line-height: 1.6; }
+      .net-notice { padding: 10px 14px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px; font-size: 13px; color: #533f03; margin-bottom: 16px; line-height: 1.5; }
+
       /* toast notifications */
       #toast { position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
       .toast-msg { padding: 10px 16px; border-radius: 6px; font-size: 14px; max-width: 480px; box-shadow: 0 2px 8px rgba(0,0,0,0.18); opacity: 0; transform: translateY(8px); transition: opacity 0.2s, transform 0.2s; pointer-events: auto; }
@@ -196,7 +210,8 @@
       <!-- Status row -->
       <div class="rt-header" style="margin-bottom:16px;">
         <span id="vpn-status-badge" class="badge disabled">&#9633; disabled</span>
-        <span id="vpn-last-error" class="hint err" style="margin-left:8px;max-width:600px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+        <span id="vpn-tun-address" class="hint" style="margin-left:10px;font-family:monospace;display:none;"></span>
+        <span id="vpn-last-error" class="hint err" style="margin-left:8px;max-width:480px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
         <span id="vpn-last-connected" class="hint" style="margin-left:auto;"></span>
       </div>
 
@@ -271,6 +286,93 @@
           <button id="vpn-save-profile-btn" type="button" style="width:auto;padding:6px 14px;font-size:13px;" data-i18n="vpn.saveProfile">Save profile</button>
         </div>
       </div>
+    </div>
+
+    <!-- ── Network Status (read-only) ───────────────────────────── -->
+    <div class="panel" style="margin-top:24px;">
+      <div class="rt-header" style="margin-bottom:12px;">
+        <h2 data-i18n="network.title" style="margin:0;">Network Status</h2>
+        <button id="network-refresh-btn" style="width:auto;padding:4px 12px;font-size:13px;margin-left:12px;" data-i18n="network.refresh">Refresh</button>
+        <span id="network-updated" class="rt-meta hint" style="margin-left:auto;"></span>
+      </div>
+
+      <p id="network-notice" class="net-notice" data-i18n="network.readonlyNotice">
+        This section shows the current network configuration of the server. IP addresses, gateway, DNS, and DHCP settings are managed in the operating system — they cannot be changed here.
+      </p>
+
+      <table class="net-table">
+        <tbody>
+          <!-- Interface -->
+          <tr>
+            <td class="net-lbl" data-i18n="network.interface">Interface</td>
+            <td><span class="net-val" id="net-val-interface"></span></td>
+            <td class="net-btn-cell"><button class="info-btn" onclick="toggleNetHelp('interface')" title="Info">&#x2139;</button></td>
+          </tr>
+          <tr class="net-help-row" id="net-help-row-interface" style="display:none">
+            <td colspan="3"><p class="net-help-text" data-i18n="network.interface.help"></p></td>
+          </tr>
+
+          <!-- IPv4 Address -->
+          <tr>
+            <td class="net-lbl" data-i18n="network.address">IPv4 Address</td>
+            <td><span class="net-val" id="net-val-address"></span></td>
+            <td class="net-btn-cell"><button class="info-btn" onclick="toggleNetHelp('address')" title="Info">&#x2139;</button></td>
+          </tr>
+          <tr class="net-help-row" id="net-help-row-address" style="display:none">
+            <td colspan="3"><p class="net-help-text" data-i18n="network.address.help"></p></td>
+          </tr>
+
+          <!-- Subnet / Prefix -->
+          <tr>
+            <td class="net-lbl" data-i18n="network.netmask">Subnet / Prefix</td>
+            <td><span class="net-val" id="net-val-netmask"></span></td>
+            <td class="net-btn-cell"><button class="info-btn" onclick="toggleNetHelp('netmask')" title="Info">&#x2139;</button></td>
+          </tr>
+          <tr class="net-help-row" id="net-help-row-netmask" style="display:none">
+            <td colspan="3"><p class="net-help-text" data-i18n="network.netmask.help"></p></td>
+          </tr>
+
+          <!-- Default Gateway -->
+          <tr>
+            <td class="net-lbl" data-i18n="network.gateway">Default Gateway</td>
+            <td><span class="net-val" id="net-val-gateway"></span></td>
+            <td class="net-btn-cell"><button class="info-btn" onclick="toggleNetHelp('gateway')" title="Info">&#x2139;</button></td>
+          </tr>
+          <tr class="net-help-row" id="net-help-row-gateway" style="display:none">
+            <td colspan="3"><p class="net-help-text" data-i18n="network.gateway.help"></p></td>
+          </tr>
+
+          <!-- DNS Servers -->
+          <tr>
+            <td class="net-lbl" data-i18n="network.dns">DNS Servers</td>
+            <td><span class="net-val" id="net-val-dns"></span></td>
+            <td class="net-btn-cell"><button class="info-btn" onclick="toggleNetHelp('dns')" title="Info">&#x2139;</button></td>
+          </tr>
+          <tr class="net-help-row" id="net-help-row-dns" style="display:none">
+            <td colspan="3"><p class="net-help-text" data-i18n="network.dns.help"></p></td>
+          </tr>
+
+          <!-- Address Mode -->
+          <tr>
+            <td class="net-lbl" data-i18n="network.dhcp">Address Mode</td>
+            <td><span class="net-val" id="net-val-dhcp"></span></td>
+            <td class="net-btn-cell"><button class="info-btn" onclick="toggleNetHelp('dhcp')" title="Info">&#x2139;</button></td>
+          </tr>
+          <tr class="net-help-row" id="net-help-row-dhcp" style="display:none">
+            <td colspan="3"><p class="net-help-text" data-i18n="network.dhcp.help"></p></td>
+          </tr>
+
+          <!-- VPN Address -->
+          <tr>
+            <td class="net-lbl" data-i18n="network.vpnAddress">VPN Address</td>
+            <td><span class="net-val" id="net-val-vpnAddress"></span></td>
+            <td class="net-btn-cell"><button class="info-btn" onclick="toggleNetHelp('vpnAddress')" title="Info">&#x2139;</button></td>
+          </tr>
+          <tr class="net-help-row" id="net-help-row-vpnAddress" style="display:none">
+            <td colspan="3"><p class="net-help-text" data-i18n="network.vpnAddress.help"></p></td>
+          </tr>
+        </tbody>
+      </table>
     </div>
 
     <!-- ── Bridge: External Modbus Server ───────────────────────── -->
@@ -635,6 +737,8 @@
         currentLang = lang;
         localStorage.setItem('mb-lang', lang);
         applyTranslations();
+        // Re-render network panel with new language (fixes "Updated:" label and VPN IP prefix)
+        if (_lastNetworkInfo) renderNetworkInfo(_lastNetworkInfo);
         refreshRuntime();
         refreshVpn();
         refreshBridgeConfig().catch(() => {});
@@ -1825,10 +1929,105 @@
       // ── Init ──────────────────────────────────────────────────────
       applyTranslations();
       toggleMappingFields();
+      // ── Network status (read-only) ────────────────────────────────
+
+      let _lastNetworkInfo = null;
+
+      function toggleNetHelp(key) {
+        const row = document.getElementById('net-help-row-' + key);
+        if (!row) return;
+        row.style.display = row.style.display === 'none' ? '' : 'none';
+      }
+
+      function setNetVal(id, value, i18nKey) {
+        const el = document.getElementById('net-val-' + id);
+        if (!el) return;
+        if (value !== null && value !== undefined && value !== '') {
+          el.textContent = value;
+          el.className = 'net-val';
+          delete el.dataset.i18n;
+        } else {
+          el.textContent = t(i18nKey || 'network.noData');
+          el.className = 'net-val no-data';
+          el.dataset.i18n = i18nKey || 'network.noData';
+        }
+      }
+
+      function renderNetworkInfo(info) {
+        // Scalar values
+        setNetVal('interface', info.interface);
+        setNetVal('address',   info.address);
+
+        // Subnet: prefer CIDR notation, fall back to netmask
+        const subnet = info.cidr || info.netmask;
+        setNetVal('netmask', subnet);
+
+        setNetVal('gateway', info.gateway);
+
+        // DNS: join list
+        const dns = Array.isArray(info.dns) && info.dns.length ? info.dns.join(', ') : null;
+        setNetVal('dns', dns);
+
+        // DHCP: translatable value — set data-i18n so applyTranslations keeps it current
+        const dhcpEl = document.getElementById('net-val-dhcp');
+        if (dhcpEl) {
+          let dhcpKey;
+          if (info.dhcp === true)       dhcpKey = 'network.dhcp.yes';
+          else if (info.dhcp === false) dhcpKey = 'network.dhcp.no';
+          else                          dhcpKey = 'network.dhcp.unknown';
+          dhcpEl.textContent  = t(dhcpKey);
+          dhcpEl.className    = 'net-val';
+          dhcpEl.dataset.i18n = dhcpKey;
+        }
+
+        // VPN address
+        setNetVal('vpnAddress', info.vpnAddress, 'network.vpnAddress.none');
+
+        // Updated timestamp
+        const updEl = document.getElementById('network-updated');
+        if (updEl && info.updatedAt) {
+          updEl.textContent = t('network.updatedAt') + ' ' + new Date(info.updatedAt).toLocaleTimeString();
+        }
+
+        // Also update VPN panel: show tun address next to VPN badge
+        const tunEl = document.getElementById('vpn-tun-address');
+        if (tunEl) {
+          if (info.vpnAddress) {
+            tunEl.textContent    = t('network.vpn.ip.label') + ' ' + info.vpnAddress;
+            tunEl.dataset.i18nLabel = 'network.vpn.ip.label';
+            tunEl.style.display  = '';
+            tunEl._vpnIp         = info.vpnAddress;
+          } else {
+            tunEl.style.display  = 'none';
+            tunEl._vpnIp         = null;
+          }
+        }
+      }
+
+      async function refreshNetwork() {
+        try {
+          const info = await fetchJson('/api/network/status');
+          _lastNetworkInfo = info;
+          renderNetworkInfo(info);
+        } catch (err) {
+          setDebug(err);
+          // Mark all values as unavailable
+          ['interface','address','netmask','gateway','dns','dhcp','vpnAddress'].forEach(k => {
+            const el = document.getElementById('net-val-' + k);
+            if (el) { el.textContent = t('network.noData'); el.className = 'net-val no-data'; el.dataset.i18n = 'network.noData'; }
+          });
+        }
+      }
+
+      document.getElementById('network-refresh-btn').addEventListener('click', () => {
+        refreshNetwork().catch(setDebug);
+      });
+
       refresh().catch(setDebug);
       refreshBridgeConfig().catch(setDebug);
       refreshVariables().catch(setDebug);
       refreshMqtt().catch(setDebug);
+      refreshNetwork().catch(setDebug);
     </script>
   </body>
 </html>
