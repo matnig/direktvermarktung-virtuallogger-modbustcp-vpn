@@ -51,4 +51,23 @@ router.delete('/:id', (req, res) => {
   res.json({ deleted: true });
 });
 
+// Preview: apply a transform pipeline to a test value without persisting anything.
+router.post('/preview', (req, res) => {
+  const { applyTransforms } = require('../../modbus/encodeRegisterValue');
+  const { validateTransform } = require('../../validation/mappingValidation');
+  const { transforms = [], inputValue = 0 } = req.body || {};
+  if (!Array.isArray(transforms)) return res.status(400).json({ error: 'transforms must be an array' });
+
+  const errors = [];
+  transforms.forEach((step, i) => errors.push(...validateTransform(step, i)));
+  if (errors.length) return res.status(400).json({ errors });
+
+  try {
+    const result = applyTransforms(Number(inputValue), transforms);
+    res.json({ inputValue: Number(inputValue), result });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 module.exports = router;

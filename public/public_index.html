@@ -70,6 +70,34 @@
       .net-help-text { font-size: 13px; color: #333; margin: 0; line-height: 1.6; }
       .net-notice { padding: 10px 14px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px; font-size: 13px; color: #533f03; margin-bottom: 16px; line-height: 1.5; }
 
+      /* transform step builder */
+      .transform-step { display: flex; align-items: center; gap: 6px; padding: 5px 8px; background: #f8f9fa; border: 1px solid #e0e4ea; border-radius: 4px; margin-bottom: 4px; flex-wrap: wrap; }
+      .transform-step-idx { font-size: 11px; color: #aaa; min-width: 14px; text-align: right; flex-shrink: 0; }
+      .transform-step-type { font-family: monospace; font-size: 12px; font-weight: 700; color: #2c5282; min-width: 88px; }
+      .transform-step input { padding: 3px 5px; margin: 0; border: 1px solid #ccc; border-radius: 3px; font-size: 12px; }
+      .transform-step-remove { background: none; border: 1px solid #dc3545; color: #dc3545; border-radius: 3px; padding: 0 6px; font-size: 13px; line-height: 20px; cursor: pointer; width: auto; margin: 0 0 0 auto; flex-shrink: 0; }
+      .transform-step-remove:hover { background: #dc3545; color: #fff; }
+      .transform-step-move { background: none; border: 1px solid #b0b8c4; color: #555; border-radius: 3px; padding: 0 5px; font-size: 11px; line-height: 18px; cursor: pointer; width: auto; margin: 0; flex-shrink: 0; }
+      .transform-step-move:hover { background: #e8f0fe; border-color: #4285f4; color: #1a56c4; }
+      .tfm-lbl { font-size: 12px; color: #666; }
+      .transform-add-row { display: flex; gap: 6px; margin-top: 6px; align-items: center; }
+      .transform-add-row select { flex: 1; padding: 6px 8px; margin: 0; font-size: 13px; }
+      .transform-add-row button { width: auto; padding: 6px 12px; margin: 0; font-size: 13px; white-space: nowrap; }
+      .transform-steps-empty { font-size: 12px; color: #999; font-style: italic; margin: 4px 0 2px 0; }
+
+      /* mapping list improvements */
+      .mapping-conflict { background: #fff3cd; border: 1px solid #ffc107; color: #856404; font-size: 11px; padding: 1px 6px; border-radius: 3px; cursor: default; }
+      .preview-panel { margin-top: 8px; border: 1px solid #d0dae8; border-radius: 4px; padding: 8px 12px; background: #f4f8ff; }
+      .preview-result-ok { font-size: 13px; font-weight: 600; color: #1a56c4; }
+      .preview-result-err { font-size: 12px; color: #dc3545; }
+      .mapping-item { padding: 6px 0; border-bottom: 1px solid #f0f0f0; }
+      .mapping-item:last-child { border-bottom: none; }
+      .mapping-item-header { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+      .mapping-item-xfm { font-size: 11px; color: #888; font-family: monospace; margin-top: 2px; }
+      .btn-toggle-on  { background: #e8f5e9; border: 1px solid #66bb6a; color: #2e7d32; padding: 2px 7px; font-size: 11px; cursor: pointer; border-radius: 3px; width: auto; margin: 0; }
+      .btn-toggle-off { background: #fff3e0; border: 1px solid #ffa726; color: #e65100; padding: 2px 7px; font-size: 11px; cursor: pointer; border-radius: 3px; width: auto; margin: 0; }
+      .btn-sm { width: auto; padding: 2px 8px; font-size: 12px; margin: 0; cursor: pointer; }
+
       /* toast notifications */
       #toast { position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
       .toast-msg { padding: 10px 16px; border-radius: 6px; font-size: 14px; max-width: 480px; box-shadow: 0 2px 8px rgba(0,0,0,0.18); opacity: 0; transform: translateY(8px); transition: opacity 0.2s, transform 0.2s; pointer-events: auto; }
@@ -498,10 +526,41 @@
             </select>
           </label>
         </div>
-        <label>
-          <span data-i18n="mapping.form.transforms">Transforms (JSON array)</span>
-          <textarea name="transforms" rows="4" style="font-family:monospace;font-size:12px;">[]</textarea>
-        </label>
+        <div style="margin-top:10px;">
+          <label style="margin-bottom:4px;"><span data-i18n="mapping.form.transforms">Transform pipeline</span></label>
+          <div id="transform-steps-list"><p class="transform-steps-empty" data-i18n="mapping.form.noTransforms">— no transforms —</p></div>
+          <div class="transform-add-row">
+            <select id="add-step-type">
+              <option value="scale">scale  ×  factor</option>
+              <option value="multiply">multiply  ×  factor</option>
+              <option value="divide">divide  ÷  divisor</option>
+              <option value="add">add  +  value</option>
+              <option value="subtract">subtract  −  value</option>
+              <option value="offset">offset  +  value</option>
+              <option value="invert">invert (negate)</option>
+              <option value="invertSign">invertSign (negate)</option>
+              <option value="abs">abs  |value|</option>
+              <option value="round">round</option>
+              <option value="clamp">clamp  min / max</option>
+              <option value="clampRange">clampRange  min / max</option>
+              <option value="clampMin">clampMin  ≥ min</option>
+              <option value="clampMax">clampMax  ≤ max</option>
+              <option value="positiveOnly">positiveOnly  (≥ 0)</option>
+              <option value="negativeOnly">negativeOnly  (≤ 0)</option>
+              <option value="boolToInt">boolToInt  (bool → 0/1)</option>
+              <option value="intToBool">intToBool  (0/!0 → 0/1)</option>
+            </select>
+            <button type="button" onclick="addTransformStep()" data-i18n="mapping.form.addStep">Add step</button>
+          </div>
+        </div>
+        <div class="preview-panel">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <span style="font-size:12px;color:#555;" data-i18n="mapping.preview.label">Test input:</span>
+            <input type="number" id="preview-input" step="any" value="100" style="width:90px;margin:0;font-size:12px;padding:4px 6px;" />
+            <button type="button" onclick="runTransformPreview()" style="width:auto;padding:4px 10px;font-size:12px;margin:0;" data-i18n="mapping.preview.run">Preview</button>
+            <span id="preview-result" style="font-size:13px;"></span>
+          </div>
+        </div>
         <label style="display:flex;align-items:center;gap:8px;margin-top:10px;">
           <input type="checkbox" name="enabled" id="mapping-enabled" checked style="width:auto;margin:0;" />
           <span data-i18n="mapping.form.enabled">Enabled</span>
@@ -1220,6 +1279,24 @@
         document.getElementById('bridge-enabled').checked = !!settings.enabled;
       }
 
+      function resolveMappingTargetName(s) {
+        const mapping = _gMappings.find(m => m.id === s.mappingId);
+        if (!mapping) return s.externalAddress != null ? String(s.externalAddress) : '';
+        const tgtType = mapping.targetType || 'external';
+        const tgtId   = mapping.targetId || mapping.externalRegisterId;
+        if (tgtType === 'variable') {
+          const v = _gVariables.find(v => v.id === tgtId);
+          return v ? esc(v.name) : esc(tgtId || '');
+        }
+        if (tgtType === 'internal') {
+          const r = _gRegisters.find(r => r.id === tgtId);
+          return r ? esc(r.name) : esc(tgtId || '');
+        }
+        // external
+        const ext = _gExtregs.find(r => r.id === tgtId);
+        return ext ? esc(ext.name) + (s.externalAddress != null ? ' @' + s.externalAddress : '') : (s.externalAddress != null ? String(s.externalAddress) : '');
+      }
+
       function renderMappingStatus(bridge) {
         const states = Object.values(bridge.mappingStates || {});
         const el = document.getElementById('bridge-mapping-status');
@@ -1231,12 +1308,14 @@
           const errHtml = s.error
             ? `<span class="err" title="${esc(s.error)}">&#9888; ${esc(s.error.slice(0,50))}</span>`
             : '<span class="ok">&mdash;</span>';
+          const srcBadge = `<span class="hint" style="font-size:11px;">${esc(s.sourceType || 'reg')}</span>`;
+          const targetName = resolveMappingTargetName(s);
           return `<tr class="${s.error ? 'row-err' : ''}">
             <td>${esc(s.label || s.mappingId || '')}</td>
-            <td class="hint">${esc(s.sourceName || '')}</td>
+            <td class="hint">${srcBadge} ${esc(s.sourceName || '')}</td>
             <td>${s.sourceValue != null ? esc(String(s.sourceValue)) : '<span class="hint">&mdash;</span>'}</td>
             <td><strong>${s.transformedValue != null ? esc(String(s.transformedValue)) : '<span class="hint">&mdash;</span>'}</strong></td>
-            <td class="hint">${s.externalAddress != null ? s.externalAddress : ''}</td>
+            <td class="hint">${targetName}</td>
             <td class="hint">${fmtTime(s.lastUpdatedAt)}</td>
             <td>${errHtml}</td>
           </tr>`;
@@ -1246,7 +1325,7 @@
           <th>${t('runtime.table.name')}</th>
           <th>${t('bridge.mapping.source')}</th>
           <th>${t('bridge.mapping.transformed')}</th>
-          <th>${t('bridge.mapping.output')}</th>
+          <th>${t('bridge.mapping.target')}</th>
           <th>${t('bridge.mapping.lastUpdated')}</th>
           <th>${t('bridge.mapping.error')}</th>
         </tr></thead><tbody>${rows}</tbody></table>`;
@@ -1366,16 +1445,34 @@
           ).join('') || `<li class="hint">${t('extreg.list.none')}</li>`;
 
           // Mappings list
+          const _conflictIds = detectMappingConflicts(mappings);
           document.getElementById('mapping-list').innerHTML = mappings.map(m => {
             const srcType = m.sourceType || 'register';
             const tgtType = m.targetType || 'external';
             const dirLabel = (srcType === 'register' && tgtType === 'external')
               ? t('mapping.direction.' + (m.direction === 'internal_to_external' ? 'i2e' : m.direction === 'external_to_internal' ? 'e2i' : 'bidi'))
               : esc(t('mapping.sourceType.' + srcType) + ' \u2192 ' + t('mapping.targetType.' + tgtType));
-            return `<li><strong>${esc(m.label || m.id)}</strong> &mdash; ${dirLabel}
-             <span class="hint">${m.enabled ? t('list.enabled') : t('list.disabled')}</span>
-             <button onclick="editMapping('${m.id}')" style="width:auto;padding:2px 8px;font-size:12px;margin-left:8px;">${t('common.edit')}</button>
-             <button onclick="deleteMapping('${m.id}')" style="width:auto;padding:2px 8px;font-size:12px;margin-left:4px;">&times;</button></li>`;
+            const xfm = transformSummary(m.transforms);
+            const xfmHtml = xfm
+              ? `<div class="mapping-item-xfm">\u21aa ${esc(xfm)}</div>`
+              : '';
+            const toggleCls = m.enabled ? 'btn-toggle-on' : 'btn-toggle-off';
+            const toggleLbl = m.enabled ? t('common.disable') : t('common.enable');
+            const conflictBadge = _conflictIds.has(m.id)
+              ? `<span class="mapping-conflict" title="${esc(t('mapping.conflict.hint'))}">\u26a0 ${esc(t('mapping.conflict.label'))}</span>`
+              : '';
+            return `<li class="mapping-item">
+              <div class="mapping-item-header">
+                <strong>${esc(m.label || m.id)}</strong>
+                <span class="hint">&mdash; ${dirLabel}</span>
+                ${conflictBadge}
+                <button class="${toggleCls}" onclick="toggleMappingEnabled('${m.id}',${m.enabled})">${toggleLbl}</button>
+                <button class="btn-sm" onclick="editMapping('${m.id}')">${t('common.edit')}</button>
+                <button class="btn-sm" onclick="duplicateMapping('${m.id}')">${t('mapping.form.duplicate')}</button>
+                <button class="btn-sm" style="border-color:#dc3545;color:#dc3545;" onclick="deleteMapping('${m.id}')">&times;</button>
+              </div>
+              ${xfmHtml}
+            </li>`;
           }).join('') || `<li class="hint">${t('mapping.list.none')}</li>`;
 
           // Watchdogs list
@@ -1409,6 +1506,25 @@
         if (!confirm(t('common.delete') + '?')) return;
         try { await fetchJson(`/api/mappings/${id}`, { method: 'DELETE' }); await refreshBridgeConfig(); }
         catch (err) { setDebug(err); showAlert(errorMessage(err)); }
+      }
+      async function duplicateMapping(id) {
+        const item = _gMappings.find(m => m.id === id);
+        if (!item) return;
+        const copy = { ...item };
+        const baseLabel = item.label || item.id || 'mapping';
+        delete copy.id; delete copy.createdAt; delete copy.updatedAt;
+        copy.label = baseLabel + ' (copy)';
+        try {
+          await fetchJson('/api/mappings', { method: 'POST', body: JSON.stringify(copy) });
+          await refreshBridgeConfig();
+          showAlert(t('common.saved'), 'success');
+        } catch (err) { setDebug(err); showAlert(errorMessage(err)); }
+      }
+      async function toggleMappingEnabled(id, enabled) {
+        try {
+          await fetchJson(`/api/mappings/${id}`, { method: 'PUT', body: JSON.stringify({ enabled: !enabled }) });
+          await refreshBridgeConfig();
+        } catch (err) { setDebug(err); showAlert(errorMessage(err)); }
       }
       async function deleteWatchdog(id) {
         if (!confirm(t('common.delete') + '?')) return;
@@ -1488,8 +1604,8 @@
         const f = document.getElementById('mapping-form');
         f.label.value        = item.label || '';
         f.description.value  = item.description || '';
-        f.transforms.value   = JSON.stringify(item.transforms || []);
         document.getElementById('mapping-enabled').checked = item.enabled !== false;
+        loadTransformSteps(item.transforms || []);
         const srcType = item.sourceType || 'register';
         const tgtType = item.targetType || 'external';
         document.getElementById('mapping-src-type').value = srcType;
@@ -1512,6 +1628,7 @@
         document.getElementById('mapping-form').reset();
         document.getElementById('mapping-submit-btn').textContent = t('mapping.form.save');
         document.getElementById('mapping-cancel-btn').style.display = 'none';
+        loadTransformSteps([]);
         toggleMappingFields();
       });
 
@@ -1559,6 +1676,159 @@
         } catch (err) { setDebug(err); showAlert(errorMessage(err)); }
       });
 
+      // ── Transform step builder ────────────────────────────────────
+      function getTransformDefaults(type) {
+        const defaults = {
+          scale: { factor: 1 }, multiply: { factor: 1 }, divide: { divisor: 1 },
+          offset: { value: 0 }, add: { value: 0 }, subtract: { value: 0 },
+          clamp: { min: 0, max: 100 }, clampRange: { min: 0, max: 100 },
+          clampMin: { min: 0 }, clampMax: { max: 100 }, round: { decimals: 2 },
+        };
+        return defaults[type] || {};
+      }
+
+      function makeTransformStepHtml(step) {
+        const type = step.type || '';
+        let params = '';
+        if (type === 'scale' || type === 'multiply') {
+          params = `<span class="tfm-lbl">&times;</span><input type="number" step="any" data-param="factor" value="${step.factor ?? 1}" style="width:80px;" />`;
+        } else if (type === 'divide') {
+          params = `<span class="tfm-lbl">&divide;</span><input type="number" step="any" data-param="divisor" value="${step.divisor ?? 1}" style="width:80px;" />`;
+        } else if (type === 'offset' || type === 'add') {
+          params = `<span class="tfm-lbl">+</span><input type="number" step="any" data-param="value" value="${step.value ?? 0}" style="width:80px;" />`;
+        } else if (type === 'subtract') {
+          params = `<span class="tfm-lbl">&minus;</span><input type="number" step="any" data-param="value" value="${step.value ?? 0}" style="width:80px;" />`;
+        } else if (type === 'clamp' || type === 'clampRange') {
+          params = `<span class="tfm-lbl">min</span><input type="number" step="any" data-param="min" value="${step.min ?? 0}" style="width:70px;" />`
+                 + `<span class="tfm-lbl">max</span><input type="number" step="any" data-param="max" value="${step.max ?? 100}" style="width:70px;" />`;
+        } else if (type === 'clampMin') {
+          params = `<span class="tfm-lbl">min</span><input type="number" step="any" data-param="min" value="${step.min ?? 0}" style="width:80px;" />`;
+        } else if (type === 'clampMax') {
+          params = `<span class="tfm-lbl">max</span><input type="number" step="any" data-param="max" value="${step.max ?? 100}" style="width:80px;" />`;
+        } else if (type === 'round') {
+          params = `<span class="tfm-lbl">dec</span><input type="number" min="0" max="10" data-param="decimals" value="${step.decimals ?? 2}" style="width:60px;" />`;
+        }
+        return `<div class="transform-step" data-type="${esc(type)}">
+          <span class="transform-step-idx"></span>
+          <span class="transform-step-type">${esc(type)}</span>
+          ${params}
+          <button type="button" class="transform-step-move" onclick="moveTransformStep(this,'up')" title="Move up">&#8593;</button>
+          <button type="button" class="transform-step-move" onclick="moveTransformStep(this,'down')" title="Move down">&#8595;</button>
+          <button type="button" class="transform-step-remove" onclick="removeTransformStep(this)">×</button>
+        </div>`;
+      }
+
+      function renumberTransformSteps() {
+        document.querySelectorAll('#transform-steps-list .transform-step-idx').forEach((el, i) => {
+          el.textContent = i + 1;
+        });
+      }
+
+      function moveTransformStep(btn, dir) {
+        const step = btn.closest('.transform-step');
+        const list = document.getElementById('transform-steps-list');
+        if (dir === 'up') {
+          const prev = step.previousElementSibling;
+          if (prev && prev.classList.contains('transform-step')) list.insertBefore(step, prev);
+        } else {
+          const next = step.nextElementSibling;
+          if (next && next.classList.contains('transform-step')) list.insertBefore(next, step);
+        }
+        renumberTransformSteps();
+      }
+
+      function addTransformStep() {
+        const type = document.getElementById('add-step-type').value;
+        const list = document.getElementById('transform-steps-list');
+        const empty = list.querySelector('.transform-steps-empty');
+        if (empty) empty.remove();
+        list.insertAdjacentHTML('beforeend', makeTransformStepHtml({ type, ...getTransformDefaults(type) }));
+        renumberTransformSteps();
+      }
+
+      function removeTransformStep(btn) {
+        btn.closest('.transform-step').remove();
+        const list = document.getElementById('transform-steps-list');
+        if (!list.querySelector('.transform-step')) {
+          list.innerHTML = `<p class="transform-steps-empty" data-i18n="mapping.form.noTransforms">${t('mapping.form.noTransforms')}</p>`;
+        }
+        renumberTransformSteps();
+      }
+
+      function loadTransformSteps(arr) {
+        const list = document.getElementById('transform-steps-list');
+        if (!Array.isArray(arr) || arr.length === 0) {
+          list.innerHTML = `<p class="transform-steps-empty" data-i18n="mapping.form.noTransforms">${t('mapping.form.noTransforms')}</p>`;
+          return;
+        }
+        list.innerHTML = arr.map(s => makeTransformStepHtml(s)).join('');
+        renumberTransformSteps();
+      }
+
+      function getTransformStepsFromDOM() {
+        const rows = document.querySelectorAll('#transform-steps-list .transform-step');
+        return Array.from(rows).map(row => {
+          const step = { type: row.dataset.type };
+          row.querySelectorAll('input[data-param]').forEach(inp => {
+            step[inp.dataset.param] = Number(inp.value);
+          });
+          return step;
+        });
+      }
+
+      function transformSummary(transforms) {
+        if (!Array.isArray(transforms) || transforms.length === 0) return '';
+        return transforms.map(s => {
+          if (s.type === 'scale' || s.type === 'multiply') return `\u00d7${s.factor ?? s.value ?? '?'}`;
+          if (s.type === 'divide') return `\u00f7${s.divisor ?? s.value ?? '?'}`;
+          if (s.type === 'offset' || s.type === 'add') return `+${s.value ?? '?'}`;
+          if (s.type === 'subtract') return `-${s.value ?? '?'}`;
+          if (s.type === 'clampMin') return `\u2265${s.min ?? '?'}`;
+          if (s.type === 'clampMax') return `\u2264${s.max ?? '?'}`;
+          if (s.type === 'clamp' || s.type === 'clampRange') return `[${s.min ?? '?'},${s.max ?? '?'}]`;
+          if (s.type === 'round') return `round(${s.decimals ?? 0})`;
+          return s.type;
+        }).join(' \u2192 ');
+      }
+
+      function detectMappingConflicts(mappings) {
+        const counts = {};
+        for (const m of mappings.filter(m => m.enabled !== false)) {
+          const tgtType = m.targetType || 'external';
+          const tgtId   = m.targetId || m.externalRegisterId || '';
+          if (!tgtId) continue;
+          const key = `${tgtType}:${tgtId}`;
+          (counts[key] = counts[key] || []).push(m.id);
+        }
+        const conflictIds = new Set();
+        for (const ids of Object.values(counts)) {
+          if (ids.length > 1) ids.forEach(id => conflictIds.add(id));
+        }
+        return conflictIds;
+      }
+
+      async function runTransformPreview() {
+        const inputVal = Number(document.getElementById('preview-input').value) || 0;
+        const transforms = getTransformStepsFromDOM();
+        const resEl = document.getElementById('preview-result');
+        if (transforms.length === 0) {
+          resEl.className = 'preview-result-ok';
+          resEl.textContent = `\u2192 ${inputVal}  (${t('mapping.preview.passthrough')})`;
+          return;
+        }
+        try {
+          const data = await fetchJson('/api/mappings/preview', {
+            method: 'POST',
+            body: JSON.stringify({ transforms, inputValue: inputVal }),
+          });
+          resEl.className = 'preview-result-ok';
+          resEl.textContent = `\u2192 ${data.result}`;
+        } catch (err) {
+          resEl.className = 'preview-result-err';
+          resEl.textContent = '\u26a0 ' + errorMessage(err);
+        }
+      }
+
       // ── Updated mapping form submit (create or update) ────────────
       document.getElementById('mapping-form').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -1569,7 +1839,7 @@
           label:       raw.label || '',
           description: raw.description || '',
           enabled:     document.getElementById('mapping-enabled').checked,
-          transforms:  JSON.parse(raw.transforms || '[]'),
+          transforms:  getTransformStepsFromDOM(),
           sourceType:  srcType,
           targetType:  tgtType,
         };
@@ -1598,6 +1868,7 @@
             await fetchJson('/api/mappings', { method: 'POST', body: JSON.stringify(p) });
           }
           e.target.reset();
+          loadTransformSteps([]);
           toggleMappingFields();
           await refreshBridgeConfig();
           showAlert(t('common.saved'), 'success');
@@ -1929,6 +2200,7 @@
       // ── Init ──────────────────────────────────────────────────────
       applyTranslations();
       toggleMappingFields();
+      loadTransformSteps([]);
       // ── Network status (read-only) ────────────────────────────────
 
       let _lastNetworkInfo = null;
