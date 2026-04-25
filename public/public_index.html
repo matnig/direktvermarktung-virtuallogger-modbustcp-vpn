@@ -520,9 +520,23 @@
           </select>
         </label>
         <div id="mapping-tgt-ext-row">
-          <label><span data-i18n="mapping.form.externalRegister">External register</span>
-            <select name="externalRegisterId" id="mapping-ext-select"></select>
+          <label style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <input type="checkbox" id="mapping-split-target" style="width:auto;margin:0;" onchange="toggleMappingFields()" />
+            <span data-i18n="mapping.form.splitTarget">Split 32-bit → Low/High word</span>
           </label>
+          <div id="mapping-ext-single">
+            <label><span data-i18n="mapping.form.externalRegister">External register</span>
+              <select name="externalRegisterId" id="mapping-ext-select"></select>
+            </label>
+          </div>
+          <div id="mapping-ext-split" style="display:none;">
+            <label><span data-i18n="mapping.form.splitLow">Low-word target register</span>
+              <select id="mapping-split-low-select"></select>
+            </label>
+            <label><span data-i18n="mapping.form.splitHigh">High-word target register</span>
+              <select id="mapping-split-high-select"></select>
+            </label>
+          </div>
         </div>
         <div id="mapping-tgt-var-row" style="display:none;">
           <label><span data-i18n="mapping.form.targetId">Target variable</span>
@@ -1487,6 +1501,7 @@
               ? t('mapping.direction.' + (m.direction === 'internal_to_external' ? 'i2e' : m.direction === 'external_to_internal' ? 'e2i' : 'bidi'))
               : '';
             const typeBadge = `<span class="mapping-type-badge">${esc(t('mapping.sourceType.' + srcType))} \u2192 ${esc(t('mapping.targetType.' + tgtType))}</span>`;
+            const splitBadge = m.splitTarget ? `<span class="mapping-type-badge" style="background:#e8f4f8;">${esc(t('mapping.split.badge'))}</span>` : '';
             const xfm = transformSummary(m.transforms);
             const xfmHtml = xfm
               ? `<div class="mapping-item-xfm">\u21aa ${esc(xfm)}</div>`
@@ -1504,6 +1519,7 @@
               <div class="mapping-item-header">
                 <strong>${esc(m.label || m.id)}</strong>
                 ${typeBadge}
+                ${splitBadge}
                 ${dirLabel ? `<span class="hint" style="font-size:11px;">${dirLabel}</span>` : ''}
                 ${disabledHint}
                 ${conflictBadge}
@@ -1526,8 +1542,10 @@
 
           // Populate selects for mapping form
           const extOpts = extregs.map(r => { const rt = r.registerType || 'holding'; return `<option value="${r.id}">${esc(r.name)} (${rt} addr ${r.address})</option>`; }).join('');
-          document.getElementById('mapping-ext-select').innerHTML  = extOpts || '<option value="">—</option>';
-          document.getElementById('watchdog-ext-select').innerHTML = extOpts || '<option value="">—</option>';
+          document.getElementById('mapping-ext-select').innerHTML       = extOpts || '<option value="">—</option>';
+          document.getElementById('mapping-split-low-select').innerHTML  = extOpts || '<option value="">—</option>';
+          document.getElementById('mapping-split-high-select').innerHTML = extOpts || '<option value="">—</option>';
+          document.getElementById('watchdog-ext-select').innerHTML       = extOpts || '<option value="">—</option>';
 
           // Bridge status
           populateBridgeServerForm(bridgeSettings);
@@ -1617,14 +1635,17 @@
 
       // ── Mapping form field toggling ───────────────────────────────
       function toggleMappingFields() {
-        const srcType = document.getElementById('mapping-src-type').value;
-        const tgtType = document.getElementById('mapping-tgt-type').value;
+        const srcType  = document.getElementById('mapping-src-type').value;
+        const tgtType  = document.getElementById('mapping-tgt-type').value;
+        const isSplit  = tgtType === 'external' && document.getElementById('mapping-split-target').checked;
         document.getElementById('mapping-src-reg-row').style.display  = srcType === 'register' ? '' : 'none';
         document.getElementById('mapping-src-var-row').style.display  = srcType === 'variable' ? '' : 'none';
         document.getElementById('mapping-tgt-ext-row').style.display  = tgtType === 'external' ? '' : 'none';
         document.getElementById('mapping-tgt-var-row').style.display  = tgtType === 'variable' ? '' : 'none';
         document.getElementById('mapping-tgt-int-row').style.display  = tgtType === 'internal' ? '' : 'none';
-        document.getElementById('mapping-direction-row').style.display = (srcType === 'register' && tgtType === 'external') ? '' : 'none';
+        document.getElementById('mapping-direction-row').style.display = (srcType === 'register' && tgtType === 'external' && !isSplit) ? '' : 'none';
+        document.getElementById('mapping-ext-single').style.display   = isSplit ? 'none' : '';
+        document.getElementById('mapping-ext-split').style.display    = isSplit ? '' : 'none';
       }
       document.getElementById('mapping-src-type').addEventListener('change', toggleMappingFields);
       document.getElementById('mapping-tgt-type').addEventListener('change', toggleMappingFields);
@@ -1682,7 +1703,15 @@
         toggleMappingFields();
         if (srcType === 'register' && item.sourceRegisterId) document.getElementById('mapping-src-select').value = item.sourceRegisterId;
         if (srcType === 'variable' && item.sourceId) document.getElementById('mapping-src-var-select').value = item.sourceId;
-        if (tgtType === 'external' && item.externalRegisterId) document.getElementById('mapping-ext-select').value = item.externalRegisterId;
+        if (tgtType === 'external') {
+          document.getElementById('mapping-split-target').checked = !!item.splitTarget;
+          if (item.splitTarget) {
+            if (item.targetLowRegisterId)  document.getElementById('mapping-split-low-select').value  = item.targetLowRegisterId;
+            if (item.targetHighRegisterId) document.getElementById('mapping-split-high-select').value = item.targetHighRegisterId;
+          } else if (item.externalRegisterId) {
+            document.getElementById('mapping-ext-select').value = item.externalRegisterId;
+          }
+        }
         if (tgtType === 'variable' && item.targetId) document.getElementById('mapping-tgt-var-select').value = item.targetId;
         if (tgtType === 'internal' && item.targetId) document.getElementById('mapping-tgt-int-input').value = item.targetId;
         if (item.direction) f.direction.value = item.direction;
@@ -1695,6 +1724,7 @@
       document.getElementById('mapping-cancel-btn').addEventListener('click', () => {
         _editMappingId = null;
         document.getElementById('mapping-form').reset();
+        document.getElementById('mapping-split-target').checked = false;
         document.getElementById('mapping-submit-btn').textContent = t('mapping.form.save');
         document.getElementById('mapping-cancel-btn').style.display = 'none';
         loadTransformSteps([]);
@@ -1947,9 +1977,16 @@
           p.sourceId = document.getElementById('mapping-src-var-select').value;
         }
         if (tgtType === 'external') {
-          p.externalRegisterId = raw.externalRegisterId;
-          p.targetId = raw.externalRegisterId;
-          p.direction = raw.direction;
+          const isSplit = document.getElementById('mapping-split-target').checked;
+          p.splitTarget = isSplit;
+          if (isSplit) {
+            p.targetLowRegisterId  = document.getElementById('mapping-split-low-select').value;
+            p.targetHighRegisterId = document.getElementById('mapping-split-high-select').value;
+          } else {
+            p.externalRegisterId = raw.externalRegisterId;
+            p.targetId = raw.externalRegisterId;
+            p.direction = raw.direction;
+          }
         } else if (tgtType === 'variable') {
           p.targetId = document.getElementById('mapping-tgt-var-select').value;
         } else {

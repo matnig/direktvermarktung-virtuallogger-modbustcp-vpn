@@ -79,8 +79,14 @@ function validateMapping(payload) {
     if (!payload.sourceId || String(payload.sourceId).trim().length < 1) {
       errors.push('sourceId is required');
     }
-    if (!payload.targetId || String(payload.targetId).trim().length < 1) {
-      errors.push('targetId is required');
+    if (payload.splitTarget === true) {
+      // Split mode: low/high register IDs replace the single targetId
+      if (!payload.targetLowRegisterId) errors.push('targetLowRegisterId is required in split mode');
+      if (!payload.targetHighRegisterId) errors.push('targetHighRegisterId is required in split mode');
+    } else {
+      if (!payload.targetId || String(payload.targetId).trim().length < 1) {
+        errors.push('targetId is required');
+      }
     }
   } else {
     // Legacy model: register → external register with explicit direction

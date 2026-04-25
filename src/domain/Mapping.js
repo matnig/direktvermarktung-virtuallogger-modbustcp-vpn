@@ -16,6 +16,10 @@ class Mapping {
     sourceId,
     targetType,
     targetId,
+    // Split 32-bit to two 16-bit external registers
+    splitTarget = false,
+    targetLowRegisterId,
+    targetHighRegisterId,
     enabled = true,
     transforms = [],
     createdAt,
@@ -33,6 +37,10 @@ class Mapping {
     this.sourceId   = sourceId   || null;
     this.targetType = targetType || null;
     this.targetId   = targetId   || null;
+    // Split mode
+    this.splitTarget          = !!splitTarget;
+    this.targetLowRegisterId  = targetLowRegisterId  || null;
+    this.targetHighRegisterId = targetHighRegisterId || null;
 
     this.enabled    = enabled !== false;
     this.transforms = Array.isArray(transforms) ? transforms : [];

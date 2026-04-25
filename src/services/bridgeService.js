@@ -65,6 +65,25 @@ function writeToTarget(mapping, transformed) {
     return { kind: 'internal', address: reg.address };
   }
 
+  // Split mode: one 32-bit source value → two 16-bit external registers (low/high word)
+  if (mapping.splitTarget === true) {
+    if (!Number.isFinite(transformed)) throw new Error('Split: source value is not finite, refusing to write');
+    const extLow  = externalRegisterRepository.getById(mapping.targetLowRegisterId);
+    const extHigh = externalRegisterRepository.getById(mapping.targetHighRegisterId);
+    if (!extLow)  throw new Error('Split: low-word target register not found');
+    if (!extHigh) throw new Error('Split: high-word target register not found');
+    // Unsigned 32-bit split: clamp to [0, 2^32-1], round to integer, then split words
+    const u32      = Math.max(0, Math.min(0xFFFFFFFF, Math.round(transformed))) >>> 0;
+    const lowWord  = u32 & 0xFFFF;
+    const highWord = (u32 >>> 16) & 0xFFFF;
+    const writeFn  = (extReg, word) => extReg.registerType === 'input'
+      ? externalServerService.writeInputWords(extReg.address, [word])
+      : externalServerService.writeWords(extReg.address, [word]);
+    writeFn(extLow,  lowWord);
+    writeFn(extHigh, highWord);
+    return { kind: 'split', lowAddress: extLow.address, highAddress: extHigh.address };
+  }
+
   // Default / legacy: write to external register (holding or input space)
   const extRegId = mapping.targetId || mapping.externalRegisterId;
   const extReg   = externalRegisterRepository.getById(extRegId);
@@ -102,6 +121,9 @@ function runMappingCycle() {
       const writeResult = writeToTarget(mapping, transformed);
       const now = new Date().toISOString();
 
+      const extAddr = writeResult.kind === 'split'
+        ? `${writeResult.lowAddress}/${writeResult.highAddress}`
+        : (writeResult.address ?? null);
       mappingStates[mapping.id] = {
         mappingId:        mapping.id,
         label:            mapping.label,
@@ -110,8 +132,8 @@ function runMappingCycle() {
         sourceValue:      rawInput,
         transformedValue: transformed,
         sourceName,
-        externalAddress:  writeResult.address ?? null,
-        externalDataType: writeResult.dataType ?? null,
+        externalAddress:  extAddr,
+        externalDataType: writeResult.kind === 'split' ? 'split16' : (writeResult.dataType ?? null),
         status:           'ok',
         error:            null,
         lastUpdatedAt:    now,
