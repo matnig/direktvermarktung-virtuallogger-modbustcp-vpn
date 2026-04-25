@@ -1,10 +1,16 @@
 const DATA_TYPES = new Set(['uint16', 'int16', 'uint32', 'int32', 'float32', 'bool']);
+const REGISTER_TYPES = new Set(['holding', 'input']);
 
 function validateExternalRegister(payload) {
   const errors = [];
 
   if (!payload.name || String(payload.name).trim().length < 2) {
     errors.push('name must contain at least 2 characters');
+  }
+
+  const registerType = payload.registerType || 'holding';
+  if (!REGISTER_TYPES.has(registerType)) {
+    errors.push('registerType must be one of: holding, input');
   }
 
   const address = Number(payload.address);
@@ -31,20 +37,24 @@ function validateExternalRegister(payload) {
   return { isValid: errors.length === 0, errors };
 }
 
-function validateNoAddressConflict(address, dataType, existingRegisters, excludeId = null) {
+// Address conflicts only apply within the same register type space.
+// A holding register at address 0 and an input register at address 0 are distinct.
+function validateNoAddressConflict(address, dataType, registerType, existingRegisters, excludeId = null) {
   const len = ['uint32', 'int32', 'float32'].includes(dataType) ? 2 : 1;
   const newAddresses = new Set();
   for (let i = 0; i < len; i++) newAddresses.add(address + i);
+  const space = registerType === 'input' ? 'input' : 'holding';
 
   for (const reg of existingRegisters) {
     if (reg.id === excludeId) continue;
     if (!reg.enabled) continue;
+    if ((reg.registerType || 'holding') !== space) continue; // different register type spaces don't conflict
     const regLen = reg.length || 1;
     for (let i = 0; i < regLen; i++) {
       if (newAddresses.has(reg.address + i)) {
         return {
           isValid: false,
-          error: `Address conflict with existing register "${reg.name}" at address ${reg.address}`,
+          error: `Address conflict with existing ${space} register "${reg.name}" at address ${reg.address}`,
         };
       }
     }

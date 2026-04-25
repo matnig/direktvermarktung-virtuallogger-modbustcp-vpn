@@ -1,6 +1,7 @@
 const net = require('net');
 
 const PROTOCOL_ID    = 0x0000;
+const FC_READ_INPUT  = 0x04;
 const FC_READ_HOLD   = 0x03;
 const FC_WRITE_ONE   = 0x06;
 const FC_WRITE_MULTI = 0x10;
@@ -10,10 +11,11 @@ const EX_ILLEGAL_VAL = 0x03;
 
 class ModbusServer {
   constructor() {
-    this._server    = null;
-    this._clients   = new Set();
-    this._listeners = new Set();
-    this.registers  = new Uint16Array(65536);
+    this._server        = null;
+    this._clients       = new Set();
+    this._listeners     = new Set();
+    this.registers      = new Uint16Array(65536); // holding registers
+    this.inputRegisters = new Uint16Array(65536); // input registers (FC04, read-only from client side)
   }
 
   // ── Public API ──────────────────────────────────────────────────────
@@ -36,6 +38,22 @@ class ModbusServer {
     for (let i = 0; i < words.length; i++) {
       const addr = address + i;
       if (addr < 65536) this.registers[addr] = words[i] & 0xffff;
+    }
+  }
+
+  readInputWords(address, count) {
+    const words = [];
+    for (let i = 0; i < count; i++) {
+      const addr = address + i;
+      words.push(addr < 65536 ? this.inputRegisters[addr] : 0);
+    }
+    return words;
+  }
+
+  writeInputWords(address, words) {
+    for (let i = 0; i < words.length; i++) {
+      const addr = address + i;
+      if (addr < 65536) this.inputRegisters[addr] = words[i] & 0xffff;
     }
   }
 
@@ -97,7 +115,25 @@ class ModbusServer {
     if (proto !== PROTOCOL_ID) return;
     if (frame.length < 6 + len) return;
 
-    if (fc === FC_READ_HOLD) {
+    if (fc === FC_READ_INPUT) {
+      if (len < 6) { socket.write(this._err(txId, unit, fc, EX_ILLEGAL_FN)); return; }
+      const start = frame.readUInt16BE(8);
+      const qty   = frame.readUInt16BE(10);
+      if (qty < 1 || qty > 125)         { socket.write(this._err(txId, unit, fc, EX_ILLEGAL_VAL)); return; }
+      if (start + qty > 65536)          { socket.write(this._err(txId, unit, fc, EX_ILLEGAL_ADR)); return; }
+
+      const byteCount = qty * 2;
+      const resp = Buffer.alloc(9 + byteCount);
+      resp.writeUInt16BE(txId, 0);
+      resp.writeUInt16BE(PROTOCOL_ID, 2);
+      resp.writeUInt16BE(3 + byteCount, 4);
+      resp.writeUInt8(unit, 6);
+      resp.writeUInt8(FC_READ_INPUT, 7);
+      resp.writeUInt8(byteCount, 8);
+      for (let i = 0; i < qty; i++) resp.writeUInt16BE(this.inputRegisters[start + i] & 0xffff, 9 + i * 2);
+      socket.write(resp);
+
+    } else if (fc === FC_READ_HOLD) {
       if (len < 6) { socket.write(this._err(txId, unit, fc, EX_ILLEGAL_FN)); return; }
       const start = frame.readUInt16BE(8);
       const qty   = frame.readUInt16BE(10);

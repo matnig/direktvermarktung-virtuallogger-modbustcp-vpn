@@ -149,6 +149,9 @@ window.TRANSLATIONS = {
     'extreg.list.none': '\u2014 no external registers \u2014',
     'extreg.list.writable': 'R/W',
     'extreg.list.readonly': 'R/O',
+    'extreg.form.registerType': 'Register type',
+    'extreg.registerType.holding': 'Holding (FC03/FC06)',
+    'extreg.registerType.input': 'Input (FC04, read-only)',
     // Mappings
     'mapping.title': 'Mappings',
     'mapping.form.title': 'Create mapping',
@@ -505,6 +508,9 @@ window.TRANSLATIONS = {
     'extreg.list.none': '\u2014 keine externen Register \u2014',
     'extreg.list.writable': 'R/W',
     'extreg.list.readonly': 'R/O',
+    'extreg.form.registerType': 'Registertyp',
+    'extreg.registerType.holding': 'Holding (FC03/FC06)',
+    'extreg.registerType.input': 'Eingang (FC04, nur lesen)',
     // Mappings (DE)
     'mapping.title': 'Mappings',
     'mapping.form.title': 'Mapping erstellen',

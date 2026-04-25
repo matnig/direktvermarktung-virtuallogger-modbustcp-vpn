@@ -5,6 +5,7 @@ class ExternalRegister {
     id,
     name,
     address,
+    registerType = 'holding',
     dataType = 'uint16',
     writable = false,
     unit = '',
@@ -16,9 +17,11 @@ class ExternalRegister {
     this.id = id;
     this.name = name;
     this.address = Number(address);
+    this.registerType = registerType === 'input' ? 'input' : 'holding';
     this.dataType = dataType;
     this.length = DATA_TYPES_32.has(dataType) ? 2 : 1;
-    this.writable = !!writable;
+    // Input registers are read-only from the external client's perspective
+    this.writable = this.registerType === 'input' ? false : !!writable;
     this.unit = unit;
     this.description = description;
     this.enabled = enabled !== false;

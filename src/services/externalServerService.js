@@ -67,6 +67,14 @@ function writeWords(address, words) {
   modbusServer.writeWords(address, words);
 }
 
+function readInputWords(address, count) {
+  return modbusServer.readInputWords(address, count);
+}
+
+function writeInputWords(address, words) {
+  modbusServer.writeInputWords(address, words);
+}
+
 function onWrite(fn) {
   return modbusServer.onWrite(fn);
 }
@@ -105,6 +113,8 @@ module.exports = {
   stopServer,
   readWords,
   writeWords,
+  readInputWords,
+  writeInputWords,
   onWrite,
   getStatus,
   initServer,

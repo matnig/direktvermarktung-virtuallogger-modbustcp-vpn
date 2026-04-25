@@ -10,8 +10,12 @@ function getById(id) {
   return list().find((item) => item.id === id) || null;
 }
 
-function getByAddress(address) {
-  return list().filter((item) => item.address === address);
+function getByAddress(address, registerType) {
+  return list().filter((item) => {
+    if (item.address !== address) return false;
+    if (registerType !== undefined && (item.registerType || 'holding') !== registerType) return false;
+    return true;
+  });
 }
 
 function create(reg) {

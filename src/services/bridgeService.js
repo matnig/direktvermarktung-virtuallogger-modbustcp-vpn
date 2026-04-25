@@ -65,13 +65,17 @@ function writeToTarget(mapping, transformed) {
     return { kind: 'internal', address: reg.address };
   }
 
-  // Default / legacy: write to external register
+  // Default / legacy: write to external register (holding or input space)
   const extRegId = mapping.targetId || mapping.externalRegisterId;
   const extReg   = externalRegisterRepository.getById(extRegId);
   if (!extReg) throw new Error('External register not found');
   const words = encodeRegisterValue(transformed, extReg.dataType);
-  externalServerService.writeWords(extReg.address, words);
-  return { kind: 'external', address: extReg.address, dataType: extReg.dataType };
+  if (extReg.registerType === 'input') {
+    externalServerService.writeInputWords(extReg.address, words);
+  } else {
+    externalServerService.writeWords(extReg.address, words);
+  }
+  return { kind: 'external', address: extReg.address, dataType: extReg.dataType, registerType: extReg.registerType || 'holding' };
 }
 
 // ── Unified mapping cycle ─────────────────────────────────────────────
@@ -142,7 +146,8 @@ function runMappingCycle() {
 // ── External → Internal write forwarding (event-driven) ──────────────
 
 async function handleExternalWrite(address, words) {
-  const extRegs = externalRegisterRepository.getByAddress(address);
+  // FC06/FC10 only write holding registers; input registers are server-side write, client-side read-only
+  const extRegs = externalRegisterRepository.getByAddress(address, 'holding');
 
   for (const extReg of extRegs) {
     if (!extReg.writable) continue;

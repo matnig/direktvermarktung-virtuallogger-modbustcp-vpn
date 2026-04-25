@@ -458,6 +458,12 @@
       <form id="extreg-form">
         <h2 data-i18n="extreg.form.title">Create external register</h2>
         <label><span data-i18n="extreg.form.name">Name</span><input name="name" required /></label>
+        <label><span data-i18n="extreg.form.registerType">Register type</span>
+          <select name="registerType" id="extreg-register-type" onchange="onExtregTypeChange()">
+            <option value="holding" data-i18n="extreg.registerType.holding">Holding (FC03/FC06)</option>
+            <option value="input" data-i18n="extreg.registerType.input">Input (FC04, read-only)</option>
+          </select>
+        </label>
         <div class="row">
           <label><span data-i18n="extreg.form.address">Address</span><input name="address" type="number" required value="0" /></label>
           <label><span data-i18n="extreg.form.dataType">Data type</span>
@@ -469,7 +475,7 @@
         </div>
         <div class="row">
           <label><span data-i18n="extreg.form.unit">Unit</span><input name="unit" /></label>
-          <label style="display:flex;align-items:center;gap:8px;margin-top:24px;">
+          <label id="extreg-writable-label" style="display:flex;align-items:center;gap:8px;margin-top:24px;">
             <input type="checkbox" name="writable" id="extreg-writable" style="width:auto;margin:0;" />
             <span data-i18n="extreg.form.writable">Writable by external client</span>
           </label>
@@ -1461,12 +1467,15 @@
           repopulateMqttPubSourceSelect();
 
           // External register list
-          document.getElementById('extreg-list').innerHTML = extregs.map(r =>
-            `<li><strong>${esc(r.name)}</strong> &mdash; addr&nbsp;${r.address} (${esc(r.dataType)}${r.unit ? ', ' + esc(r.unit) : ''})
-             <span class="hint">${r.writable ? t('extreg.list.writable') : t('extreg.list.readonly')}</span>
+          document.getElementById('extreg-list').innerHTML = extregs.map(r => {
+            const rtype = r.registerType || 'holding';
+            const rtypeBadge = `<span class="mapping-type-badge">${esc(t('extreg.registerType.' + rtype))}</span>`;
+            const rwBadge = `<span class="hint">${r.writable ? t('extreg.list.writable') : t('extreg.list.readonly')}</span>`;
+            return `<li><strong>${esc(r.name)}</strong> &mdash; addr&nbsp;${r.address} (${esc(r.dataType)}${r.unit ? ', ' + esc(r.unit) : ''})
+             ${rtypeBadge} ${rwBadge}
              <button onclick="editExtReg('${r.id}')" style="width:auto;padding:2px 8px;font-size:12px;margin-left:8px;">${t('common.edit')}</button>
-             <button onclick="deleteExtReg('${r.id}')" style="width:auto;padding:2px 8px;font-size:12px;margin-left:4px;">&times;</button></li>`
-          ).join('') || `<li class="hint">${t('extreg.list.none')}</li>`;
+             <button onclick="deleteExtReg('${r.id}')" style="width:auto;padding:2px 8px;font-size:12px;margin-left:4px;">&times;</button></li>`;
+          }).join('') || `<li class="hint">${t('extreg.list.none')}</li>`;
 
           // Mappings list
           const _conflictMap = detectMappingConflicts(mappings);
@@ -1516,7 +1525,7 @@
           ).join('') || `<li class="hint">${t('watchdog.list.none')}</li>`;
 
           // Populate selects for mapping form
-          const extOpts = extregs.map(r => `<option value="${r.id}">${esc(r.name)} (addr ${r.address})</option>`).join('');
+          const extOpts = extregs.map(r => { const rt = r.registerType || 'holding'; return `<option value="${r.id}">${esc(r.name)} (${rt} addr ${r.address})</option>`; }).join('');
           document.getElementById('mapping-ext-select').innerHTML  = extOpts || '<option value="">—</option>';
           document.getElementById('watchdog-ext-select').innerHTML = extOpts || '<option value="">—</option>';
 
@@ -1598,7 +1607,7 @@
         let items = [];
         if (type === 'register')          items = _gRegisters.map(r => ({ id: r.id, label: r.name + ' (' + r.registerType + '@' + r.address + ')' }));
         else if (type === 'variable')     items = _gVariables.map(v => ({ id: v.id, label: v.name }));
-        else if (type === 'external_register') items = _gExtregs.map(r => ({ id: r.id, label: r.name + ' (addr ' + r.address + ')' }));
+        else if (type === 'external_register') items = _gExtregs.map(r => ({ id: r.id, label: r.name + ' (' + (r.registerType || 'holding') + ' addr ' + r.address + ')' }));
         else if (type === 'watchdog')     items = _gWatchdogs.map(w => ({ id: w.id, label: w.label || w.id }));
         document.getElementById('mqttpub-src-select').innerHTML =
           items.map(i => `<option value="${i.id}">${esc(i.label)}</option>`).join('') || '<option value="">—</option>';
@@ -1624,6 +1633,12 @@
       let _editExtRegId = null, _editMappingId = null, _editWatchdogId = null;
       let _editVarId = null, _editMqttSubId = null, _editMqttPubId = null;
 
+      function onExtregTypeChange() {
+        const rtype = document.getElementById('extreg-register-type').value;
+        const wLabel = document.getElementById('extreg-writable-label');
+        if (wLabel) wLabel.style.display = rtype === 'input' ? 'none' : '';
+      }
+
       function editExtReg(id) {
         const item = _gExtregs.find(r => r.id === id);
         if (!item) return;
@@ -1634,7 +1649,9 @@
         f.dataType.value    = item.dataType || 'uint16';
         f.unit.value        = item.unit || '';
         f.description.value = item.description || '';
+        document.getElementById('extreg-register-type').value = item.registerType || 'holding';
         document.getElementById('extreg-writable').checked = !!item.writable;
+        onExtregTypeChange();
         document.getElementById('extreg-submit-btn').textContent = t('common.edit');
         document.getElementById('extreg-cancel-btn').style.display = '';
         f.scrollIntoView({ behavior: 'smooth' });
@@ -1643,6 +1660,8 @@
       document.getElementById('extreg-cancel-btn').addEventListener('click', () => {
         _editExtRegId = null;
         document.getElementById('extreg-form').reset();
+        document.getElementById('extreg-register-type').value = 'holding';
+        onExtregTypeChange();
         document.getElementById('extreg-submit-btn').textContent = t('extreg.form.save');
         document.getElementById('extreg-cancel-btn').style.display = 'none';
       });
@@ -1708,9 +1727,10 @@
       document.getElementById('extreg-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const p = Object.fromEntries(new FormData(e.target).entries());
-        p.address  = Number(p.address);
-        p.writable = document.getElementById('extreg-writable').checked;
-        p.enabled  = true;
+        p.address      = Number(p.address);
+        p.registerType = document.getElementById('extreg-register-type').value || 'holding';
+        p.writable     = p.registerType === 'input' ? false : document.getElementById('extreg-writable').checked;
+        p.enabled      = true;
         try {
           if (_editExtRegId) {
             await fetchJson(`/api/external-registers/${_editExtRegId}`, { method: 'PUT', body: JSON.stringify(p) });

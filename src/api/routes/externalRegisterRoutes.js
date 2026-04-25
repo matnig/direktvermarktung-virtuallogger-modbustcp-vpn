@@ -25,7 +25,7 @@ router.post('/', (req, res) => {
   if (!validation.isValid) return res.status(400).json({ errors: validation.errors });
 
   const conflict = validateNoAddressConflict(
-    Number(body.address), body.dataType, externalRegisterRepository.list()
+    Number(body.address), body.dataType, body.registerType || 'holding', externalRegisterRepository.list()
   );
   if (!conflict.isValid) return res.status(400).json({ errors: [conflict.error] });
 
@@ -44,16 +44,19 @@ router.put('/:id', (req, res) => {
   if (!validation.isValid) return res.status(400).json({ errors: validation.errors });
 
   const conflict = validateNoAddressConflict(
-    Number(merged.address), merged.dataType, externalRegisterRepository.list(), req.params.id
+    Number(merged.address), merged.dataType, merged.registerType || 'holding', externalRegisterRepository.list(), req.params.id
   );
   if (!conflict.isValid) return res.status(400).json({ errors: [conflict.error] });
 
+  const regType = merged.registerType === 'input' ? 'input' : 'holding';
   const updated = externalRegisterRepository.update(req.params.id, (item) => ({
     ...item,
     ...body,
     id: item.id,
     createdAt: item.createdAt,
     updatedAt: new Date().toISOString(),
+    registerType: regType,
+    writable: regType === 'input' ? false : !!merged.writable,
     length: ['uint32', 'int32', 'float32'].includes(merged.dataType) ? 2 : 1,
   }));
   res.json(updated);
