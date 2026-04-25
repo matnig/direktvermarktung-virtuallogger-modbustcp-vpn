@@ -86,14 +86,25 @@
       .transform-steps-empty { font-size: 12px; color: #999; font-style: italic; margin: 4px 0 2px 0; }
 
       /* mapping list improvements */
-      .mapping-conflict { background: #fff3cd; border: 1px solid #ffc107; color: #856404; font-size: 11px; padding: 1px 6px; border-radius: 3px; cursor: default; }
+      .mapping-conflict { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; font-size: 11px; padding: 1px 6px; border-radius: 3px; cursor: default; }
+      .mapping-warning  { background: #fff3cd; border: 1px solid #ffc107; color: #856404; font-size: 11px; padding: 1px 6px; border-radius: 3px; cursor: default; }
+      .mapping-type-badge { font-size: 11px; color: #495057; background: #eef2f7; border: 1px solid #d0dae8; padding: 1px 5px; border-radius: 3px; font-family: monospace; white-space: nowrap; }
+      .mapping-disabled-hint { font-size: 11px; color: #aaa; font-style: italic; }
       .preview-panel { margin-top: 8px; border: 1px solid #d0dae8; border-radius: 4px; padding: 8px 12px; background: #f4f8ff; }
       .preview-result-ok { font-size: 13px; font-weight: 600; color: #1a56c4; }
       .preview-result-err { font-size: 12px; color: #dc3545; }
+      .preview-trace { font-family: monospace; font-size: 12px; margin-top: 8px; padding: 7px 10px; background: #fff; border: 1px solid #d0dae8; border-radius: 3px; line-height: 1.9; }
+      .preview-trace-in  { color: #555; }
+      .preview-trace-out { color: #1a56c4; font-weight: 700; }
+      .preview-trace-step { color: #333; }
+      .preview-trace-step .step-lbl { color: #2c5282; font-weight: 600; }
+      .preview-trace-step .step-val { color: #1a56c4; font-weight: 700; }
       .mapping-item { padding: 6px 0; border-bottom: 1px solid #f0f0f0; }
       .mapping-item:last-child { border-bottom: none; }
       .mapping-item-header { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
       .mapping-item-xfm { font-size: 11px; color: #888; font-family: monospace; margin-top: 2px; }
+      .status-ok  { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 3px; background: #d4edda; color: #155724; }
+      .status-err { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 3px; background: #f8d7da; color: #721c24; }
       .btn-toggle-on  { background: #e8f5e9; border: 1px solid #66bb6a; color: #2e7d32; padding: 2px 7px; font-size: 11px; cursor: pointer; border-radius: 3px; width: auto; margin: 0; }
       .btn-toggle-off { background: #fff3e0; border: 1px solid #ffa726; color: #e65100; padding: 2px 7px; font-size: 11px; cursor: pointer; border-radius: 3px; width: auto; margin: 0; }
       .btn-sm { width: auto; padding: 2px 8px; font-size: 12px; margin: 0; cursor: pointer; }
@@ -560,6 +571,7 @@
             <button type="button" onclick="runTransformPreview()" style="width:auto;padding:4px 10px;font-size:12px;margin:0;" data-i18n="mapping.preview.run">Preview</button>
             <span id="preview-result" style="font-size:13px;"></span>
           </div>
+          <div id="preview-trace" style="display:none;"></div>
         </div>
         <label style="display:flex;align-items:center;gap:8px;margin-top:10px;">
           <input type="checkbox" name="enabled" id="mapping-enabled" checked style="width:auto;margin:0;" />
@@ -858,8 +870,11 @@
       function errorMessage(err) {
         if (!err) return 'Unknown error';
         if (typeof err === 'string') return err;
+        // Backend referential-integrity errors: { error: 'code', message: 'human text' }
         if (err.message && typeof err.message === 'string') return err.message;
         if (err.error && typeof err.error === 'string') return err.error;
+        // Validation errors: { errors: ['msg1', 'msg2'] }
+        if (Array.isArray(err.errors) && err.errors.length > 0) return err.errors.join(' | ');
         return JSON.stringify(err);
       }
 
@@ -1146,15 +1161,18 @@
         ]);
 
         sourceList.innerHTML = sources.map(s =>
-          `<li><strong>${esc(s.name)}</strong> &mdash; ${esc(s.host)}:${s.port} (${t('list.unit')} ${s.unitId}) <span class="hint">${s.enabled ? '\u25cf ' + t('list.enabled') : '\u25cb ' + t('list.disabled')}</span></li>`
+          `<li><strong>${esc(s.name)}</strong> &mdash; ${esc(s.host)}:${s.port} (${t('list.unit')} ${s.unitId}) <span class="hint">${s.enabled ? '\u25cf ' + t('list.enabled') : '\u25cb ' + t('list.disabled')}</span>
+           <button onclick="deleteSource('${s.id}')" style="width:auto;padding:2px 8px;font-size:12px;margin-left:8px;">&times;</button></li>`
         ).join('') || `<li class="hint">${t('list.none')}</li>`;
 
         registerList.innerHTML = registers.map(r =>
-          `<li><strong>${esc(r.name)}</strong> &mdash; ${r.registerType} @ ${r.address} (${r.dataType}${r.unit ? ', ' + esc(r.unit) : ''})</li>`
+          `<li><strong>${esc(r.name)}</strong> &mdash; ${r.registerType} @ ${r.address} (${r.dataType}${r.unit ? ', ' + esc(r.unit) : ''})
+           <button onclick="deleteRegister('${r.id}')" style="width:auto;padding:2px 8px;font-size:12px;margin-left:8px;">&times;</button></li>`
         ).join('') || `<li class="hint">${t('list.none')}</li>`;
 
         profileList.innerHTML = profiles.map(p =>
-          `<li><strong>${esc(p.name)}</strong> &mdash; ${esc(p.providerKey)} <span class="hint">(${(p.registerTemplates || []).length} ${t('list.templates')})</span></li>`
+          `<li><strong>${esc(p.name)}</strong> &mdash; ${esc(p.providerKey)} <span class="hint">(${(p.registerTemplates || []).length} ${t('list.templates')})</span>
+           <button onclick="deleteProfile('${p.id}')" style="width:auto;padding:2px 8px;font-size:12px;margin-left:8px;">&times;</button></li>`
         ).join('') || `<li class="hint">${t('list.none')}</li>`;
 
         const srcOptions = sources.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
@@ -1305,19 +1323,25 @@
           return;
         }
         const rows = states.map(s => {
-          const errHtml = s.error
-            ? `<span class="err" title="${esc(s.error)}">&#9888; ${esc(s.error.slice(0,50))}</span>`
-            : '<span class="ok">&mdash;</span>';
-          const srcBadge = `<span class="hint" style="font-size:11px;">${esc(s.sourceType || 'reg')}</span>`;
+          const statusBadge = s.status === 'ok'
+            ? '<span class="status-ok">\u2713 ok</span>'
+            : s.error
+            ? `<span class="status-err" title="${esc(s.error)}">\u26a0 ${esc(t('mapping.status.error'))}</span>`
+            : '<span class="hint">&mdash;</span>';
+          const errDetail = s.error
+            ? `<div class="err" style="font-size:11px;margin-top:2px;" title="${esc(s.error)}">${esc(s.error.slice(0,60))}</div>`
+            : '';
+          const srcBadge = `<span class="mapping-type-badge" style="font-size:10px;">${esc(s.sourceType || 'reg')}</span>`;
           const targetName = resolveMappingTargetName(s);
+          const lastWrite = s.lastWriteAt ? fmtTime(s.lastWriteAt) : '<span class="hint">&mdash;</span>';
           return `<tr class="${s.error ? 'row-err' : ''}">
             <td>${esc(s.label || s.mappingId || '')}</td>
             <td class="hint">${srcBadge} ${esc(s.sourceName || '')}</td>
             <td>${s.sourceValue != null ? esc(String(s.sourceValue)) : '<span class="hint">&mdash;</span>'}</td>
             <td><strong>${s.transformedValue != null ? esc(String(s.transformedValue)) : '<span class="hint">&mdash;</span>'}</strong></td>
             <td class="hint">${targetName}</td>
-            <td class="hint">${fmtTime(s.lastUpdatedAt)}</td>
-            <td>${errHtml}</td>
+            <td>${statusBadge}${errDetail}</td>
+            <td class="hint">${lastWrite}</td>
           </tr>`;
         }).join('');
         el.innerHTML = `<table class="rt-table"><thead><tr>
@@ -1326,8 +1350,8 @@
           <th>${t('bridge.mapping.source')}</th>
           <th>${t('bridge.mapping.transformed')}</th>
           <th>${t('bridge.mapping.target')}</th>
-          <th>${t('bridge.mapping.lastUpdated')}</th>
-          <th>${t('bridge.mapping.error')}</th>
+          <th>${t('bridge.mapping.status')}</th>
+          <th>${t('bridge.mapping.lastWrite')}</th>
         </tr></thead><tbody>${rows}</tbody></table>`;
       }
 
@@ -1445,26 +1469,34 @@
           ).join('') || `<li class="hint">${t('extreg.list.none')}</li>`;
 
           // Mappings list
-          const _conflictIds = detectMappingConflicts(mappings);
+          const _conflictMap = detectMappingConflicts(mappings);
           document.getElementById('mapping-list').innerHTML = mappings.map(m => {
             const srcType = m.sourceType || 'register';
             const tgtType = m.targetType || 'external';
-            const dirLabel = (srcType === 'register' && tgtType === 'external')
+            // Direction label for legacy register→external mappings; type badge for all
+            const dirLabel = (srcType === 'register' && tgtType === 'external' && m.direction)
               ? t('mapping.direction.' + (m.direction === 'internal_to_external' ? 'i2e' : m.direction === 'external_to_internal' ? 'e2i' : 'bidi'))
-              : esc(t('mapping.sourceType.' + srcType) + ' \u2192 ' + t('mapping.targetType.' + tgtType));
+              : '';
+            const typeBadge = `<span class="mapping-type-badge">${esc(t('mapping.sourceType.' + srcType))} \u2192 ${esc(t('mapping.targetType.' + tgtType))}</span>`;
             const xfm = transformSummary(m.transforms);
             const xfmHtml = xfm
               ? `<div class="mapping-item-xfm">\u21aa ${esc(xfm)}</div>`
               : '';
+            const disabledHint = !m.enabled ? `<span class="mapping-disabled-hint">${esc(t('list.disabled'))}</span>` : '';
             const toggleCls = m.enabled ? 'btn-toggle-on' : 'btn-toggle-off';
             const toggleLbl = m.enabled ? t('common.disable') : t('common.enable');
-            const conflictBadge = _conflictIds.has(m.id)
-              ? `<span class="mapping-conflict" title="${esc(t('mapping.conflict.hint'))}">\u26a0 ${esc(t('mapping.conflict.label'))}</span>`
+            const conflictSev = _conflictMap[m.id];
+            const conflictBadge = conflictSev === 'conflict'
+              ? `<span class="mapping-conflict" title="${esc(t('mapping.conflict.definite.hint'))}">\u26a0 ${esc(t('mapping.conflict.definite'))}</span>`
+              : conflictSev === 'warning'
+              ? `<span class="mapping-warning" title="${esc(t('mapping.conflict.warning.hint'))}">\u26a0 ${esc(t('mapping.conflict.warning'))}</span>`
               : '';
             return `<li class="mapping-item">
               <div class="mapping-item-header">
                 <strong>${esc(m.label || m.id)}</strong>
-                <span class="hint">&mdash; ${dirLabel}</span>
+                ${typeBadge}
+                ${dirLabel ? `<span class="hint" style="font-size:11px;">${dirLabel}</span>` : ''}
+                ${disabledHint}
                 ${conflictBadge}
                 <button class="${toggleCls}" onclick="toggleMappingEnabled('${m.id}',${m.enabled})">${toggleLbl}</button>
                 <button class="btn-sm" onclick="editMapping('${m.id}')">${t('common.edit')}</button>
@@ -1499,12 +1531,12 @@
 
       async function deleteExtReg(id) {
         if (!confirm(t('common.delete') + '?')) return;
-        try { await fetchJson(`/api/external-registers/${id}`, { method: 'DELETE' }); await refreshBridgeConfig(); }
+        try { await fetchJson(`/api/external-registers/${id}`, { method: 'DELETE' }); await refreshBridgeConfig(); showAlert(t('common.deleted'), 'success'); }
         catch (err) { setDebug(err); showAlert(errorMessage(err)); }
       }
       async function deleteMapping(id) {
         if (!confirm(t('common.delete') + '?')) return;
-        try { await fetchJson(`/api/mappings/${id}`, { method: 'DELETE' }); await refreshBridgeConfig(); }
+        try { await fetchJson(`/api/mappings/${id}`, { method: 'DELETE' }); await refreshBridgeConfig(); showAlert(t('common.deleted'), 'success'); }
         catch (err) { setDebug(err); showAlert(errorMessage(err)); }
       }
       async function duplicateMapping(id) {
@@ -1528,7 +1560,25 @@
       }
       async function deleteWatchdog(id) {
         if (!confirm(t('common.delete') + '?')) return;
-        try { await fetchJson(`/api/watchdogs/${id}`, { method: 'DELETE' }); await refreshBridgeConfig(); }
+        try { await fetchJson(`/api/watchdogs/${id}`, { method: 'DELETE' }); await refreshBridgeConfig(); showAlert(t('common.deleted'), 'success'); }
+        catch (err) { setDebug(err); showAlert(errorMessage(err)); }
+      }
+
+      async function deleteSource(id) {
+        if (!confirm(t('common.delete') + '?')) return;
+        try { await fetchJson(`/api/sources/${id}`, { method: 'DELETE' }); await refresh(); showAlert(t('common.deleted'), 'success'); }
+        catch (err) { setDebug(err); showAlert(errorMessage(err)); }
+      }
+
+      async function deleteRegister(id) {
+        if (!confirm(t('common.delete') + '?')) return;
+        try { await fetchJson(`/api/registers/${id}`, { method: 'DELETE' }); await refresh(); showAlert(t('common.deleted'), 'success'); }
+        catch (err) { setDebug(err); showAlert(errorMessage(err)); }
+      }
+
+      async function deleteProfile(id) {
+        if (!confirm(t('common.delete') + '?')) return;
+        try { await fetchJson(`/api/profiles/${id}`, { method: 'DELETE' }); await refresh(); showAlert(t('common.deleted'), 'success'); }
         catch (err) { setDebug(err); showAlert(errorMessage(err)); }
       }
 
@@ -1792,28 +1842,44 @@
       }
 
       function detectMappingConflicts(mappings) {
-        const counts = {};
-        for (const m of mappings.filter(m => m.enabled !== false)) {
+        // Group enabled mappings by target
+        const targetGroups = {};
+        for (const m of mappings) {
+          if (m.enabled === false) continue; // disabled mappings never create a conflict
           const tgtType = m.targetType || 'external';
           const tgtId   = m.targetId || m.externalRegisterId || '';
           if (!tgtId) continue;
           const key = `${tgtType}:${tgtId}`;
-          (counts[key] = counts[key] || []).push(m.id);
+          (targetGroups[key] = targetGroups[key] || []).push(m);
         }
-        const conflictIds = new Set();
-        for (const ids of Object.values(counts)) {
-          if (ids.length > 1) ids.forEach(id => conflictIds.add(id));
+        // Returns { mappingId: 'conflict' | 'warning' }
+        const severity = {};
+        for (const group of Object.values(targetGroups)) {
+          if (group.length < 2) continue;
+          // Count mappings that actively write to the target on each tick
+          const active = group.filter(m => {
+            if (m.sourceType) return true;             // new model: always tick-driven
+            if (m.direction === 'external_to_internal') return false; // reads ext, doesn't write to it
+            return true;                               // i2e or bidirectional write to target
+          });
+          const sev = active.length >= 2 ? 'conflict' : 'warning';
+          group.forEach(m => {
+            if (!severity[m.id] || severity[m.id] !== 'conflict') severity[m.id] = sev;
+          });
         }
-        return conflictIds;
+        return severity;
       }
 
       async function runTransformPreview() {
         const inputVal = Number(document.getElementById('preview-input').value) || 0;
         const transforms = getTransformStepsFromDOM();
-        const resEl = document.getElementById('preview-result');
+        const resEl   = document.getElementById('preview-result');
+        const traceEl = document.getElementById('preview-trace');
         if (transforms.length === 0) {
           resEl.className = 'preview-result-ok';
           resEl.textContent = `\u2192 ${inputVal}  (${t('mapping.preview.passthrough')})`;
+          traceEl.style.display = 'none';
+          traceEl.innerHTML = '';
           return;
         }
         try {
@@ -1821,11 +1887,22 @@
             method: 'POST',
             body: JSON.stringify({ transforms, inputValue: inputVal }),
           });
-          resEl.className = 'preview-result-ok';
-          resEl.textContent = `\u2192 ${data.result}`;
+          resEl.className = '';
+          resEl.textContent = '';
+          // Step-by-step trace
+          const lines = [];
+          lines.push(`<div class="preview-trace-in">${esc(t('mapping.preview.trace.input'))} <strong>${esc(String(data.inputValue))}</strong></div>`);
+          for (const s of (data.trace || [])) {
+            lines.push(`<div class="preview-trace-step">&nbsp;&nbsp;<span class="step-lbl">${esc(s.label)}</span> \u2192 <span class="step-val">${esc(String(s.after))}</span></div>`);
+          }
+          lines.push(`<div class="preview-trace-out">${esc(t('mapping.preview.trace.output'))} <strong>${esc(String(data.result))}</strong></div>`);
+          traceEl.innerHTML = lines.join('');
+          traceEl.className = 'preview-trace';
+          traceEl.style.display = '';
         } catch (err) {
           resEl.className = 'preview-result-err';
           resEl.textContent = '\u26a0 ' + errorMessage(err);
+          traceEl.style.display = 'none';
         }
       }
 
@@ -1952,7 +2029,7 @@
 
       async function deleteVariable(id) {
         if (!confirm(t('common.delete') + '?')) return;
-        try { await fetchJson(`/api/variables/${id}`, { method: 'DELETE' }); await refreshVariables(); }
+        try { await fetchJson(`/api/variables/${id}`, { method: 'DELETE' }); await refreshVariables(); showAlert(t('common.deleted'), 'success'); }
         catch (err) { setDebug(err); showAlert(errorMessage(err)); }
       }
 
@@ -2102,7 +2179,7 @@
 
       async function deleteMqttSub(id) {
         if (!confirm(t('common.delete') + '?')) return;
-        try { await fetchJson(`/api/mqtt/subscriptions/${id}`, { method: 'DELETE' }); await refreshMqtt(); }
+        try { await fetchJson(`/api/mqtt/subscriptions/${id}`, { method: 'DELETE' }); await refreshMqtt(); showAlert(t('common.deleted'), 'success'); }
         catch (err) { setDebug(err); showAlert(errorMessage(err)); }
       }
 
@@ -2167,7 +2244,7 @@
 
       async function deleteMqttPub(id) {
         if (!confirm(t('common.delete') + '?')) return;
-        try { await fetchJson(`/api/mqtt-publish-rules/${id}`, { method: 'DELETE' }); await refreshMqtt(); }
+        try { await fetchJson(`/api/mqtt-publish-rules/${id}`, { method: 'DELETE' }); await refreshMqtt(); showAlert(t('common.deleted'), 'success'); }
         catch (err) { setDebug(err); showAlert(errorMessage(err)); }
       }
 

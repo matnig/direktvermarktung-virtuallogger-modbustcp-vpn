@@ -186,7 +186,10 @@ window.TRANSLATIONS = {
 
     // Common
     'common.edit': 'Edit', 'common.delete': 'Delete', 'common.cancel': 'Cancel', 'common.saved': 'Saved',
+    'common.deleted': 'Deleted',
     'common.enable': 'Enable', 'common.disable': 'Disable', 'common.editing': 'Editing:',
+    'common.deleteBlocked': 'Cannot delete: item is still referenced.',
+    'common.deleteError': 'Delete failed.',
 
     // MQTT config
     'mqtt.title': 'MQTT',
@@ -310,9 +313,21 @@ window.TRANSLATIONS = {
     // Mapping preview + conflicts
     'mapping.preview.label': 'Test input:',
     'mapping.preview.run': 'Preview',
-    'mapping.preview.passthrough': 'no transforms',
-    'mapping.conflict.label': 'conflict',
-    'mapping.conflict.hint': 'Multiple active mappings write to the same target',
+    'mapping.preview.passthrough': 'no transforms — value passed through',
+    'mapping.preview.trace.input': 'input:',
+    'mapping.preview.trace.output': 'output:',
+    'mapping.conflict.label': 'Conflict',
+    'mapping.conflict.hint': 'Multiple active mappings write to the same target — last write wins, behavior undefined',
+    'mapping.conflict.definite': 'Conflict',
+    'mapping.conflict.definite.hint': 'Two or more active mappings write to the same target — result is undefined',
+    'mapping.conflict.warning': 'Warning',
+    'mapping.conflict.warning.hint': 'Overlapping mappings share the same target — check direction settings',
+    // Mapping live status
+    'bridge.mapping.status': 'Status',
+    'bridge.mapping.lastWrite': 'Last write',
+    'mapping.status.ok': 'ok',
+    'mapping.status.error': 'error',
+    'mapping.status.disabled': 'disabled',
 
     // Network status (read-only)
     'network.title': 'Network Status',
@@ -527,7 +542,10 @@ window.TRANSLATIONS = {
 
     // Common (DE)
     'common.edit': 'Bearbeiten', 'common.delete': 'Löschen', 'common.cancel': 'Abbrechen', 'common.saved': 'Gespeichert',
+    'common.deleted': 'Gelöscht',
     'common.enable': 'Aktivieren', 'common.disable': 'Deaktivieren', 'common.editing': 'Bearbeitung:',
+    'common.deleteBlocked': 'Löschen nicht möglich: Element wird noch verwendet.',
+    'common.deleteError': 'Löschen fehlgeschlagen.',
 
     // MQTT config (DE)
     'mqtt.title': 'MQTT',
@@ -651,9 +669,21 @@ window.TRANSLATIONS = {
     // Mapping-Vorschau + Konflikte (DE)
     'mapping.preview.label': 'Testwert:',
     'mapping.preview.run': 'Vorschau',
-    'mapping.preview.passthrough': 'keine Transformationen',
+    'mapping.preview.passthrough': 'keine Transformationen — Wert wird direkt weitergeleitet',
+    'mapping.preview.trace.input': 'Eingabe:',
+    'mapping.preview.trace.output': 'Ausgabe:',
     'mapping.conflict.label': 'Konflikt',
-    'mapping.conflict.hint': 'Mehrere aktive Mappings schreiben auf dasselbe Ziel',
+    'mapping.conflict.hint': 'Mehrere aktive Mappings schreiben auf dasselbe Ziel — letzter Schreibvorgang gewinnt, Verhalten undefiniert',
+    'mapping.conflict.definite': 'Konflikt',
+    'mapping.conflict.definite.hint': 'Zwei oder mehr aktive Mappings schreiben auf dasselbe Ziel — Ergebnis undefiniert',
+    'mapping.conflict.warning': 'Warnung',
+    'mapping.conflict.warning.hint': 'Überlappende Mappings teilen dasselbe Ziel — Richtungseinstellungen prüfen',
+    // Mapping Live-Status (DE)
+    'bridge.mapping.status': 'Status',
+    'bridge.mapping.lastWrite': 'Letzter Schreibvorgang',
+    'mapping.status.ok': 'ok',
+    'mapping.status.error': 'Fehler',
+    'mapping.status.disabled': 'deaktiviert',
 
     // Netzwerkstatus (nur lesend)
     'network.title': 'Netzwerkstatus',

@@ -96,6 +96,7 @@ function runMappingCycle() {
       const { value: rawInput, name: sourceName, lastReadAt } = source;
       const transformed = applyTransforms(rawInput, mapping.transforms);
       const writeResult = writeToTarget(mapping, transformed);
+      const now = new Date().toISOString();
 
       mappingStates[mapping.id] = {
         mappingId:        mapping.id,
@@ -107,8 +108,10 @@ function runMappingCycle() {
         sourceName,
         externalAddress:  writeResult.address ?? null,
         externalDataType: writeResult.dataType ?? null,
+        status:           'ok',
         error:            null,
-        lastUpdatedAt:    new Date().toISOString(),
+        lastUpdatedAt:    now,
+        lastWriteAt:      now,
       };
     } catch (err) {
       // Clear value fields so stale data is not displayed alongside the error
@@ -121,8 +124,10 @@ function runMappingCycle() {
         sourceName:       mappingStates[mapping.id]?.sourceName ?? null,
         externalAddress:  mappingStates[mapping.id]?.externalAddress ?? null,
         externalDataType: mappingStates[mapping.id]?.externalDataType ?? null,
+        status:           'error',
         error:            err.message,
         lastUpdatedAt:    new Date().toISOString(),
+        lastWriteAt:      mappingStates[mapping.id]?.lastWriteAt ?? null,
       };
     }
   }

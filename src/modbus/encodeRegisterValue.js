@@ -48,87 +48,122 @@ function decodeWords(words, dataType) {
   }
 }
 
+// Apply a single transform step to a value — throws on non-finite results.
+function applyOneStep(v, step) {
+  switch (step.type) {
+    case 'scale': {
+      const factor = Number(step.factor ?? 1);
+      v = v * factor;
+      if (!isFinite(v)) throw new Error(`transform 'scale' produced non-finite result (factor=${step.factor})`);
+      break;
+    }
+    case 'offset': {
+      const offset = Number(step.value ?? 0);
+      v = v + offset;
+      if (!isFinite(v)) throw new Error(`transform 'offset' produced non-finite result (value=${step.value})`);
+      break;
+    }
+    case 'multiply': {
+      const mf = Number(step.factor ?? step.value ?? 1);
+      v = v * mf;
+      if (!isFinite(v)) throw new Error(`transform 'multiply' produced non-finite result (factor=${step.factor ?? step.value})`);
+      break;
+    }
+    case 'divide': {
+      const div = Number(step.divisor ?? step.value ?? 1);
+      if (div === 0) throw new Error(`transform 'divide': divisor cannot be zero`);
+      v = v / div;
+      if (!isFinite(v)) throw new Error(`transform 'divide' produced non-finite result (divisor=${step.divisor ?? step.value})`);
+      break;
+    }
+    case 'add': {
+      const av = Number(step.value ?? 0);
+      v = v + av;
+      if (!isFinite(v)) throw new Error(`transform 'add' produced non-finite result`);
+      break;
+    }
+    case 'subtract': {
+      const sv = Number(step.value ?? 0);
+      v = v - sv;
+      if (!isFinite(v)) throw new Error(`transform 'subtract' produced non-finite result`);
+      break;
+    }
+    case 'invert':
+    case 'invertSign': v = -v; break;
+    case 'abs':    v = Math.abs(v); break;
+    case 'clamp':
+    case 'clampRange': {
+      const lo = step.min !== undefined ? Number(step.min) : -Infinity;
+      const hi = step.max !== undefined ? Number(step.max) :  Infinity;
+      const safeLo = isFinite(lo) ? lo : -Infinity;
+      const safeHi = isFinite(hi) ? hi :  Infinity;
+      v = Math.max(safeLo, Math.min(safeHi, v));
+      break;
+    }
+    case 'clampMin': {
+      const cmin = Number(step.min ?? step.value ?? 0);
+      if (isFinite(cmin)) v = Math.max(cmin, v);
+      break;
+    }
+    case 'clampMax': {
+      const cmax = Number(step.max ?? step.value ?? 0);
+      if (isFinite(cmax)) v = Math.min(cmax, v);
+      break;
+    }
+    case 'positiveOnly': v = Math.max(0, v); break;
+    case 'negativeOnly': v = Math.min(0, v); break;
+    case 'round': {
+      const dec = Math.max(0, Math.round(Number(step.decimals ?? 0)));
+      v = Number(v.toFixed(dec));
+      break;
+    }
+    case 'boolToInt': v = v ? 1 : 0; break;
+    case 'intToBool': v = v !== 0 ? 1 : 0; break;
+    default: break;
+  }
+  return v;
+}
+
+// Build a short human-readable label for a transform step, e.g. "scale(1000)".
+function stepLabel(step) {
+  if (step.type === 'scale' || step.type === 'multiply') return `${step.type}(${step.factor ?? step.value ?? 1})`;
+  if (step.type === 'divide')   return `divide(${step.divisor ?? step.value ?? 1})`;
+  if (step.type === 'offset' || step.type === 'add') return `${step.type}(${step.value ?? 0})`;
+  if (step.type === 'subtract') return `subtract(${step.value ?? 0})`;
+  if (step.type === 'round')    return `round(${step.decimals ?? 0})`;
+  if (step.type === 'clamp' || step.type === 'clampRange') {
+    const lo = step.min !== undefined ? step.min : '−∞';
+    const hi = step.max !== undefined ? step.max : '∞';
+    return `${step.type}(${lo}, ${hi})`;
+  }
+  if (step.type === 'clampMin') return `clampMin(${step.min ?? step.value ?? 0})`;
+  if (step.type === 'clampMax') return `clampMax(${step.max ?? step.value ?? 0})`;
+  return step.type;
+}
+
 // Apply an ordered transform pipeline to a numeric value.
 // Throws if a step produces a non-finite result (NaN / Infinity propagation).
 function applyTransforms(value, transforms) {
   if (!Array.isArray(transforms) || transforms.length === 0) return value;
   let v = typeof value === 'number' && isFinite(value) ? value : 0;
-
-  for (const step of transforms) {
-    switch (step.type) {
-      case 'scale': {
-        const factor = Number(step.factor ?? 1);
-        v = v * factor;
-        if (!isFinite(v)) throw new Error(`transform 'scale' produced non-finite result (factor=${step.factor})`);
-        break;
-      }
-      case 'offset': {
-        const offset = Number(step.value ?? 0);
-        v = v + offset;
-        if (!isFinite(v)) throw new Error(`transform 'offset' produced non-finite result (value=${step.value})`);
-        break;
-      }
-      case 'multiply': {
-        const mf = Number(step.factor ?? step.value ?? 1);
-        v = v * mf;
-        if (!isFinite(v)) throw new Error(`transform 'multiply' produced non-finite result (factor=${step.factor ?? step.value})`);
-        break;
-      }
-      case 'divide': {
-        const div = Number(step.divisor ?? step.value ?? 1);
-        if (div === 0) throw new Error(`transform 'divide': divisor cannot be zero`);
-        v = v / div;
-        if (!isFinite(v)) throw new Error(`transform 'divide' produced non-finite result (divisor=${step.divisor ?? step.value})`);
-        break;
-      }
-      case 'add': {
-        const av = Number(step.value ?? 0);
-        v = v + av;
-        if (!isFinite(v)) throw new Error(`transform 'add' produced non-finite result`);
-        break;
-      }
-      case 'subtract': {
-        const sv = Number(step.value ?? 0);
-        v = v - sv;
-        if (!isFinite(v)) throw new Error(`transform 'subtract' produced non-finite result`);
-        break;
-      }
-      case 'invert':
-      case 'invertSign': v = -v; break;
-      case 'abs':    v = Math.abs(v); break;
-      case 'clamp':
-      case 'clampRange': {
-        const lo = step.min !== undefined ? Number(step.min) : -Infinity;
-        const hi = step.max !== undefined ? Number(step.max) :  Infinity;
-        const safeLo = isFinite(lo) ? lo : -Infinity;
-        const safeHi = isFinite(hi) ? hi :  Infinity;
-        v = Math.max(safeLo, Math.min(safeHi, v));
-        break;
-      }
-      case 'clampMin': {
-        const cmin = Number(step.min ?? step.value ?? 0);
-        if (isFinite(cmin)) v = Math.max(cmin, v);
-        break;
-      }
-      case 'clampMax': {
-        const cmax = Number(step.max ?? step.value ?? 0);
-        if (isFinite(cmax)) v = Math.min(cmax, v);
-        break;
-      }
-      case 'positiveOnly': v = Math.max(0, v); break;
-      case 'negativeOnly': v = Math.min(0, v); break;
-      case 'round': {
-        const dec = Math.max(0, Math.round(Number(step.decimals ?? 0)));
-        v = Number(v.toFixed(dec));
-        break;
-      }
-      case 'boolToInt': v = v ? 1 : 0; break;
-      case 'intToBool': v = v !== 0 ? 1 : 0; break;
-      default: break;
-    }
-  }
-
+  for (const step of transforms) v = applyOneStep(v, step);
   return v;
 }
 
-module.exports = { encodeRegisterValue, decodeWords, applyTransforms };
+// Like applyTransforms but also returns intermediate values for each step.
+// Returns { input, result, trace: [{ label, after }] }
+function applyTransformsWithTrace(value, transforms) {
+  const input = typeof value === 'number' && isFinite(value) ? value : 0;
+  if (!Array.isArray(transforms) || transforms.length === 0) {
+    return { input, result: input, trace: [] };
+  }
+  let v = input;
+  const trace = [];
+  for (const step of transforms) {
+    v = applyOneStep(v, step);
+    trace.push({ label: stepLabel(step), after: v });
+  }
+  return { input, result: v, trace };
+}
+
+module.exports = { encodeRegisterValue, decodeWords, applyTransforms, applyTransformsWithTrace };
