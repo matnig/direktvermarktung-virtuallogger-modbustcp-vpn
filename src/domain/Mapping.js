@@ -15,6 +15,9 @@ class Mapping {
     sourceType,
     sourceId,
     sourceIds,
+    splitSource = false,
+    sourceLowRegisterId,
+    sourceHighRegisterId,
     targetType,
     targetId,
     // Split 32-bit to two 16-bit external registers
@@ -37,6 +40,9 @@ class Mapping {
     this.sourceType = sourceType || null;
     this.sourceId   = sourceId   || null;
     this.sourceIds  = Array.isArray(sourceIds) ? sourceIds : [];
+    this.splitSource = !!splitSource;
+    this.sourceLowRegisterId  = sourceLowRegisterId  || null;
+    this.sourceHighRegisterId = sourceHighRegisterId || null;
     this.targetType = targetType || null;
     this.targetId   = targetId   || null;
     // Split mode

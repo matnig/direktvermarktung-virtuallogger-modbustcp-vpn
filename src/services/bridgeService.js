@@ -32,6 +32,31 @@ function resolveSourceValue(mapping, registerStates) {
     return { value: vs.currentValue, name: def.name || mapping.sourceId, lastReadAt: vs.lastUpdatedAt };
   }
 
+  // External register as source (read from external server register space)
+  if (mapping.sourceType === 'external') {
+    const readExt = (er) => {
+      const w = er.registerType === 'input'
+        ? externalServerService.readInputWords(er.address, 1)
+        : externalServerService.readWords(er.address, 1);
+      return (w && w.length) ? (w[0] & 0xFFFF) : 0;
+    };
+    if (mapping.splitSource === true) {
+      const lo = externalRegisterRepository.getById(mapping.sourceLowRegisterId);
+      const hi = externalRegisterRepository.getById(mapping.sourceHighRegisterId);
+      if (!lo) throw new Error('external split: low-word source register not found');
+      if (!hi) throw new Error('external split: high-word source register not found');
+      const u32 = (((readExt(hi) << 16) >>> 0) | readExt(lo)) >>> 0;
+      return { value: u32, name: 'Σ(' + (lo.name || 'low') + '+' + (hi.name || 'high') + ')', lastReadAt: new Date().toISOString() };
+    }
+    const er = externalRegisterRepository.getById(mapping.sourceId);
+    if (!er) throw new Error('external source register not found');
+    const len = er.length || 1;
+    const words = er.registerType === 'input'
+      ? externalServerService.readInputWords(er.address, len)
+      : externalServerService.readWords(er.address, len);
+    return { value: decodeWords(words, er.dataType), name: er.name, lastReadAt: new Date().toISOString() };
+  }
+
   // Sum of multiple internal registers (scaled values)
   if (mapping.sourceType === 'register_sum') {
     const ids = Array.isArray(mapping.sourceIds) ? mapping.sourceIds : [];

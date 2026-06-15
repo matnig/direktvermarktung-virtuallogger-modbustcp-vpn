@@ -1,5 +1,5 @@
 const DIRECTIONS    = new Set(['internal_to_external', 'external_to_internal', 'bidirectional']);
-const SOURCE_TYPES  = new Set(['register', 'variable', 'register_sum']);
+const SOURCE_TYPES  = new Set(['register', 'variable', 'register_sum', 'external']);
 const TARGET_TYPES  = new Set(['external', 'variable', 'internal']);
 const TRANSFORM_TYPES = new Set([
   'scale', 'offset', 'invert', 'clamp', 'abs',
@@ -80,6 +80,9 @@ function validateMapping(payload) {
       if (!Array.isArray(payload.sourceIds) || payload.sourceIds.length === 0) {
         errors.push('sourceIds (non-empty array) is required for register_sum');
       }
+    } else if (payload.sourceType === 'external' && payload.splitSource === true) {
+      if (!payload.sourceLowRegisterId) errors.push('sourceLowRegisterId is required in split source mode');
+      if (!payload.sourceHighRegisterId) errors.push('sourceHighRegisterId is required in split source mode');
     } else if (!payload.sourceId || String(payload.sourceId).trim().length < 1) {
       errors.push('sourceId is required');
     }

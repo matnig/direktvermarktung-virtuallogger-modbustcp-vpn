@@ -501,6 +501,7 @@
             <option value="register">Internal register</option>
             <option value="variable">Virtual variable</option>
             <option value="register_sum">Register-Summe (Σ)</option>
+            <option value="external">Externes Register</option>
           </select>
         </label>
         <div id="mapping-src-reg-row">
@@ -517,6 +518,21 @@
           <label><span>Quell-Register (Summe) — Mehrfachauswahl mit Strg/Cmd</span>
             <select id="mapping-src-sum-select" multiple size="6" style="height:auto;"></select>
           </label>
+        </div>
+        <div id="mapping-src-ext-row" style="display:none;">
+          <label style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <input type="checkbox" id="mapping-src-split" style="width:auto;margin:0;" onchange="toggleMappingFields()" />
+            <span>32-Bit aus Low/High kombinieren</span>
+          </label>
+          <div id="mapping-src-ext-single">
+            <label><span>Externes Quell-Register</span>
+              <select id="mapping-src-ext-select"></select>
+            </label>
+          </div>
+          <div id="mapping-src-ext-split" style="display:none;">
+            <label><span>Low-Word Quell-Register</span><select id="mapping-src-ext-low"></select></label>
+            <label><span>High-Word Quell-Register</span><select id="mapping-src-ext-high"></select></label>
+          </div>
         </div>
         <label><span data-i18n="mapping.form.targetType">Target type</span>
           <select name="targetType" id="mapping-tgt-type">
@@ -1524,7 +1540,7 @@
             const dirLabel = (srcType === 'register' && tgtType === 'external' && m.direction)
               ? t('mapping.direction.' + (m.direction === 'internal_to_external' ? 'i2e' : m.direction === 'external_to_internal' ? 'e2i' : 'bidi'))
               : '';
-            const typeBadge = `<span class="mapping-type-badge">${esc(srcType === 'register_sum' ? 'Register-Summe' : t('mapping.sourceType.' + srcType))} \u2192 ${esc(t('mapping.targetType.' + tgtType))}</span>`;
+            const typeBadge = `<span class="mapping-type-badge">${esc(srcType === 'register_sum' ? 'Register-Summe' : srcType === 'external' ? 'Externes Register' : t('mapping.sourceType.' + srcType))} \u2192 ${esc(t('mapping.targetType.' + tgtType))}</span>`;
             const splitBadge = m.splitTarget ? `<span class="mapping-type-badge" style="background:#e8f4f8;">${esc(t('mapping.split.badge'))}</span>` : '';
             const xfm = transformSummary(m.transforms);
             const xfmHtml = xfm
@@ -1569,6 +1585,9 @@
           document.getElementById('mapping-ext-select').innerHTML       = extOpts || '<option value="">—</option>';
           document.getElementById('mapping-split-low-select').innerHTML  = extOpts || '<option value="">—</option>';
           document.getElementById('mapping-split-high-select').innerHTML = extOpts || '<option value="">—</option>';
+          document.getElementById('mapping-src-ext-select').innerHTML    = extOpts || '<option value="">—</option>';
+          document.getElementById('mapping-src-ext-low').innerHTML       = extOpts || '<option value="">—</option>';
+          document.getElementById('mapping-src-ext-high').innerHTML      = extOpts || '<option value="">—</option>';
           document.getElementById('watchdog-ext-select').innerHTML       = extOpts || '<option value="">—</option>';
 
           // Bridge status
@@ -1665,6 +1684,12 @@
         document.getElementById('mapping-src-reg-row').style.display  = srcType === 'register' ? '' : 'none';
         document.getElementById('mapping-src-var-row').style.display  = srcType === 'variable' ? '' : 'none';
         document.getElementById('mapping-src-sum-row').style.display  = srcType === 'register_sum' ? '' : 'none';
+        document.getElementById('mapping-src-ext-row').style.display  = srcType === 'external' ? '' : 'none';
+        {
+          const _extSplit = srcType === 'external' && document.getElementById('mapping-src-split').checked;
+          document.getElementById('mapping-src-ext-single').style.display = _extSplit ? 'none' : '';
+          document.getElementById('mapping-src-ext-split').style.display  = _extSplit ? '' : 'none';
+        }
         document.getElementById('mapping-tgt-ext-row').style.display  = tgtType === 'external' ? '' : 'none';
         document.getElementById('mapping-tgt-var-row').style.display  = tgtType === 'variable' ? '' : 'none';
         document.getElementById('mapping-tgt-int-row').style.display  = tgtType === 'internal' ? '' : 'none';
@@ -1731,6 +1756,16 @@
         if (srcType === 'register_sum' && Array.isArray(item.sourceIds)) {
           const _want = new Set(item.sourceIds);
           Array.from(document.getElementById('mapping-src-sum-select').options).forEach(o => { o.selected = _want.has(o.value); });
+        }
+        if (srcType === 'external') {
+          document.getElementById('mapping-src-split').checked = !!item.splitSource;
+          if (item.splitSource) {
+            if (item.sourceLowRegisterId)  document.getElementById('mapping-src-ext-low').value  = item.sourceLowRegisterId;
+            if (item.sourceHighRegisterId) document.getElementById('mapping-src-ext-high').value = item.sourceHighRegisterId;
+          } else if (item.sourceId) {
+            document.getElementById('mapping-src-ext-select').value = item.sourceId;
+          }
+          toggleMappingFields();
         }
         if (tgtType === 'external') {
           document.getElementById('mapping-split-target').checked = !!item.splitTarget;
@@ -2004,6 +2039,15 @@
           p.sourceId = raw.sourceRegisterId;
         } else if (srcType === 'register_sum') {
           p.sourceIds = Array.from(document.getElementById('mapping-src-sum-select').selectedOptions).map(o => o.value);
+        } else if (srcType === 'external') {
+          const _es = document.getElementById('mapping-src-split').checked;
+          p.splitSource = _es;
+          if (_es) {
+            p.sourceLowRegisterId  = document.getElementById('mapping-src-ext-low').value;
+            p.sourceHighRegisterId = document.getElementById('mapping-src-ext-high').value;
+          } else {
+            p.sourceId = document.getElementById('mapping-src-ext-select').value;
+          }
         } else {
           p.sourceId = document.getElementById('mapping-src-var-select').value;
         }
