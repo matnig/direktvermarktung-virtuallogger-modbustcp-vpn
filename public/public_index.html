@@ -715,6 +715,23 @@
           <button type="button" id="mqtt-disconnect-btn" style="width:auto;" data-i18n="mqtt.config.disconnect">Disconnect</button>
           <button type="button" id="mqtt-reconnect-btn" style="width:auto;" data-i18n="mqtt.config.reconnect">Reconnect</button>
         </div>
+        <div style="border-top:1px solid #eee;margin-top:16px;padding-top:12px;">
+          <h3 style="margin:0 0 10px;font-size:14px;" data-i18n="mqtt.discovery.title">Home Assistant Discovery</h3>
+          <label style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+            <input type="checkbox" id="mqtt-discovery-enabled" style="width:auto;margin:0;" />
+            <span data-i18n="mqtt.discovery.enabled">Enable MQTT Discovery</span>
+          </label>
+          <div class="row">
+            <label><span data-i18n="mqtt.discovery.prefix">Discovery prefix</span><input id="mqtt-discovery-prefix" value="homeassistant" /></label>
+            <label><span data-i18n="mqtt.discovery.deviceName">Device name</span><input id="mqtt-discovery-device-name" value="Modbus Bridge" /></label>
+          </div>
+          <label><span data-i18n="mqtt.discovery.deviceId">Device ID</span><input id="mqtt-discovery-device-id" value="modbus-bridge" /></label>
+          <div style="display:flex;gap:8px;margin-top:8px;align-items:center;">
+            <button type="button" id="mqtt-discovery-save-btn" style="width:auto;" data-i18n="mqtt.discovery.save">Save discovery settings</button>
+            <button type="button" id="mqtt-discovery-publish-btn" style="width:auto;" data-i18n="mqtt.discovery.publish">Publish discovery now</button>
+            <span id="mqtt-discovery-feedback" style="font-size:12px;color:#555;"></span>
+          </div>
+        </div>
       </form>
 
       <div class="panel">
@@ -2095,6 +2112,7 @@
           `<li><strong>${esc(v.name)}</strong>${v.label ? ' — ' + esc(v.label) : ''} <span class="hint">(${esc(v.dataType)}${v.unit ? ', ' + esc(v.unit) : ''})</span>
            <span class="hint">${v.enabled ? t('list.enabled') : t('list.disabled')}</span>
            ${v.writable ? `<button onclick="setVarValue('${v.id}')" style="width:auto;padding:2px 8px;font-size:12px;margin-left:4px;">=</button>` : ''}
+           <button onclick="toggleVarHa('${v.id}', ${!!v.haEnabled})" style="width:auto;padding:2px 8px;font-size:12px;margin-left:4px;${v.haEnabled ? 'border-color:#28a745;color:#28a745;' : 'color:#aaa;'}" title="${t('var.form.haEnabled')}">${t('var.haEnabled')}</button>
            <button onclick="editVariable('${v.id}')" style="width:auto;padding:2px 8px;font-size:12px;margin-left:4px;">${t('common.edit')}</button>
            <button onclick="deleteVariable('${v.id}')" style="width:auto;padding:2px 8px;font-size:12px;margin-left:4px;">&times;</button></li>`
         ).join('') || `<li class="hint">${t('var.list.none')}</li>`;
@@ -2158,6 +2176,10 @@
         f.reconnectMs.value = cfg.reconnectMs || 5000;
         document.getElementById('mqtt-enabled').checked = !!cfg.enabled;
         document.getElementById('mqtt-tls').checked     = !!cfg.tls;
+        document.getElementById('mqtt-discovery-enabled').checked         = !!cfg.discoveryEnabled;
+        document.getElementById('mqtt-discovery-prefix').value            = cfg.discoveryPrefix     || 'homeassistant';
+        document.getElementById('mqtt-discovery-device-name').value       = cfg.discoveryDeviceName || 'Modbus Bridge';
+        document.getElementById('mqtt-discovery-device-id').value         = cfg.discoveryDeviceId   || 'modbus-bridge';
       }
 
       document.getElementById('mqtt-config-form').addEventListener('submit', async (e) => {
@@ -2189,6 +2211,40 @@
         try { const r = await fetchJson('/api/mqtt/reconnect', { method: 'POST' }); renderMqttStatus(r); setDebug(r); setTimeout(refreshMqtt, 1500); }
         catch (err) { setDebug(err); }
       });
+
+      async function saveDiscoverySettings() {
+        const p = {
+          discoveryEnabled:    document.getElementById('mqtt-discovery-enabled').checked,
+          discoveryPrefix:     document.getElementById('mqtt-discovery-prefix').value,
+          discoveryDeviceName: document.getElementById('mqtt-discovery-device-name').value,
+          discoveryDeviceId:   document.getElementById('mqtt-discovery-device-id').value,
+        };
+        try {
+          await fetchJson('/api/mqtt/config', { method: 'PUT', body: JSON.stringify(p) });
+          showAlert(t('common.saved'), 'success');
+        } catch (err) { showAlert(errorMessage(err)); }
+      }
+
+      async function publishDiscoveryNow() {
+        try {
+          const r = await fetchJson('/api/mqtt/discovery/publish', { method: 'POST' });
+          const msg = t('mqtt.discovery.published') + ' (' + r.published + ')';
+          document.getElementById('mqtt-discovery-feedback').textContent = msg;
+          showAlert(msg, 'success');
+        } catch (err) { showAlert(errorMessage(err)); }
+      }
+
+      async function toggleVarHa(id, current) {
+        try {
+          await fetchJson(`/api/variables/${id}`, { method: 'PUT', body: JSON.stringify({ haEnabled: !current }) });
+          await refreshVariables();
+          await refreshMqtt();
+          showAlert(!current ? (t('mqtt.discovery.auto_published') || 'HA Discovery published') : (t('mqtt.discovery.auto_removed') || 'HA entity removed'), 'success');
+        } catch (err) { setDebug(err); showAlert(errorMessage(err)); }
+      }
+
+      document.getElementById('mqtt-discovery-save-btn').addEventListener('click', saveDiscoverySettings);
+      document.getElementById('mqtt-discovery-publish-btn').addEventListener('click', publishDiscoveryNow);
 
       // ── MQTT Subscriptions ────────────────────────────────────────
       document.getElementById('mqttsub-form').addEventListener('submit', async (e) => {
@@ -2241,12 +2297,14 @@
       }
 
       function renderSubscriptionList(subs) {
-        document.getElementById('mqttsub-list').innerHTML = subs.map(s =>
-          `<li><strong>${esc(s.topic)}</strong>${s.label ? ' — ' + esc(s.label) : ''} <span class="hint">→ ${esc(s.variableId || '?')}</span>
+        document.getElementById('mqttsub-list').innerHTML = subs.map(s => {
+          const targetVar = _gVariables.find(v => v.id === s.variableId);
+          const targetLabel = targetVar ? (targetVar.label || targetVar.name) : (s.variableId || '?');
+          return `<li><strong>${esc(s.topic)}</strong>${s.label ? ' — ' + esc(s.label) : ''} <span class="hint">→ ${esc(targetLabel)}</span>
            <span class="hint">${s.enabled ? t('list.enabled') : t('list.disabled')}</span>
            <button onclick="editMqttSub('${s.id}')" style="width:auto;padding:2px 8px;font-size:12px;margin-left:4px;">${t('common.edit')}</button>
-           <button onclick="deleteMqttSub('${s.id}')" style="width:auto;padding:2px 8px;font-size:12px;margin-left:4px;">&times;</button></li>`
-        ).join('') || `<li class="hint">${t('mqttsub.list.none')}</li>`;
+           <button onclick="deleteMqttSub('${s.id}')" style="width:auto;padding:2px 8px;font-size:12px;margin-left:4px;">&times;</button></li>`;
+        }).join('') || `<li class="hint">${t('mqttsub.list.none')}</li>`;
       }
 
       // ── MQTT Publish Rules ────────────────────────────────────────

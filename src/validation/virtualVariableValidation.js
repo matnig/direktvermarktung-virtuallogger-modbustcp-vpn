@@ -16,6 +16,9 @@ function validateVirtualVariable(payload) {
   if (payload.enabled !== undefined && typeof payload.enabled !== 'boolean') {
     errors.push('enabled must be a boolean');
   }
+  if (payload.haEnabled !== undefined && typeof payload.haEnabled !== 'boolean') {
+    errors.push('haEnabled must be a boolean');
+  }
 
   // Validate initialValue against dataType when both are provided
   if (payload.initialValue !== undefined && payload.initialValue !== null && payload.initialValue !== '') {

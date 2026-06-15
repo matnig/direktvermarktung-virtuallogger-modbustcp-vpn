@@ -40,6 +40,14 @@ router.post('/reconnect', (req, res) => {
   res.json(mqttService.getStatus());
 });
 
+// ── MQTT Discovery ────────────────────────────────────────────────────
+
+router.post('/discovery/publish', (req, res) => {
+  const discoveryService = require('../../services/mqttDiscoveryService');
+  const count = discoveryService.publishDiscovery();
+  res.json({ published: count });
+});
+
 // ── MQTT subscriptions ────────────────────────────────────────────────
 
 router.get('/subscriptions', (req, res) => {

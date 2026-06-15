@@ -10,6 +10,11 @@ const DEFAULT_CONFIG = Object.freeze({
   enabled: false, host: 'localhost', port: 1883, clientId: 'modbus-bridge',
   username: '', password: '', baseTopic: 'modbus-bridge',
   keepalive: 60, tls: false, reconnectMs: 5000,
+  // Home Assistant MQTT Discovery
+  discoveryEnabled:    false,
+  discoveryPrefix:     'homeassistant',
+  discoveryDeviceName: 'Modbus Bridge',
+  discoveryDeviceId:   'modbus-bridge',
 });
 
 let _client       = null;
@@ -24,9 +29,11 @@ const _lastPublished = new Map();
 
 function getConfig() {
   if (_configCache) return { ..._configCache };
-  const stored = readCollection(COLLECTION, { ...DEFAULT_CONFIG });
+  const stored = readCollection(COLLECTION, null);
+  // Merge with DEFAULT_CONFIG so new fields get their defaults in existing installations
   _configCache = (stored && !Array.isArray(stored) && typeof stored === 'object')
-    ? stored : { ...DEFAULT_CONFIG };
+    ? { ...DEFAULT_CONFIG, ...stored }
+    : { ...DEFAULT_CONFIG };
   return { ..._configCache };
 }
 
@@ -34,7 +41,8 @@ function updateConfig(payload) {
   const current = getConfig();
   const next = { ...current };
   const fields = ['enabled', 'host', 'port', 'clientId', 'username', 'password',
-                  'baseTopic', 'keepalive', 'tls', 'reconnectMs'];
+                  'baseTopic', 'keepalive', 'tls', 'reconnectMs',
+                  'discoveryEnabled', 'discoveryPrefix', 'discoveryDeviceName', 'discoveryDeviceId'];
   for (const f of fields) {
     if (payload[f] !== undefined) next[f] = payload[f];
   }
@@ -86,6 +94,10 @@ function extractFromPath(data, path) {
 // ── Message handling ──────────────────────────────────────────────────
 
 function handleMessage(topic, buffer) {
+  // Discovery command topics take priority before regular subscriptions
+  const discoveryService = require('./mqttDiscoveryService');
+  if (discoveryService.handleCommand(topic, buffer)) return;
+
   const raw = buffer.toString('utf8');
   const subs = mqttSubscriptionRepository.list().filter((s) => s.enabled);
 
@@ -130,6 +142,11 @@ function publish(topic, value, options = {}) {
 
 function runPublishCycle(registerStates = {}, watchdogStates = {}) {
   if (_state.status !== 'connected') return;
+
+  // HA Discovery state updates (runs each tick alongside regular publish rules)
+  const discoveryService = require('./mqttDiscoveryService');
+  discoveryService.publishStates();
+
   const config = getConfig();
   const rules  = mqttPublishRuleRepository.list().filter((r) => r.enabled);
 
@@ -150,13 +167,15 @@ function runPublishCycle(registerStates = {}, watchdogStates = {}) {
           break;
         }
         case 'external_register': {
-          // External register address is stored in sourceId as address string; look up by id
           const externalServerService = require('./externalServerService');
           const externalRegisterRepository = require('../repositories/externalRegisterRepository');
           const extReg = externalRegisterRepository.getById(rule.sourceId);
           if (!extReg) continue;
           const { decodeWords } = require('../modbus/encodeRegisterValue');
-          const words = externalServerService.readWords(extReg.address, extReg.length);
+          // Route to the correct register space (holding = FC03, input = FC04)
+          const words = extReg.registerType === 'input'
+            ? externalServerService.readInputWords(extReg.address, extReg.length)
+            : externalServerService.readWords(extReg.address, extReg.length);
           value = decodeWords(words, extReg.dataType);
           break;
         }
@@ -172,7 +191,7 @@ function runPublishCycle(registerStates = {}, watchdogStates = {}) {
       value = applyTransforms(value, rule.transforms);
 
       const last = _lastPublished.get(rule.id);
-      if (rule.publishOnChange && last === value) continue;
+      if (rule.publishOnChange && String(last) === String(value)) continue;
 
       const topic = rule.topic.startsWith('/')
         ? rule.topic.slice(1)
@@ -204,6 +223,12 @@ function subscribeAll() {
 
 // Called when a subscription is added/changed so we subscribe live
 function resubscribe(topic) {
+  if (!_client || _state.status !== 'connected' || !topic) return;
+  _client.subscribe(topic, { qos: 0 });
+}
+
+// Raw subscribe — used by discoveryService to subscribe command topics
+function subscribeRaw(topic) {
   if (!_client || _state.status !== 'connected' || !topic) return;
   _client.subscribe(topic, { qos: 0 });
 }
@@ -242,12 +267,16 @@ function connect() {
   _client = mqtt.connect(url, opts);
 
   _client.on('connect', () => {
-    _state.status        = 'connected';
-    _state.connectedAt   = new Date().toISOString();
+    _state.status          = 'connected';
+    _state.connectedAt     = new Date().toISOString();
     _state.lastConnectedAt = _state.connectedAt;
-    _state.lastError     = null;
+    _state.lastError       = null;
     console.log(`[MQTT] connected to ${url}`);
     subscribeAll();
+    // Publish HA discovery configs and subscribe to command topics
+    const discoveryService = require('./mqttDiscoveryService');
+    discoveryService.subscribeCommandTopics(subscribeRaw);
+    discoveryService.publishDiscovery();
   });
 
   _client.on('message', handleMessage);
@@ -306,6 +335,7 @@ module.exports = {
   disconnect,
   reconnect,
   publish,
+  subscribeRaw,
   runPublishCycle,
   resubscribe,
   unsubscribeTopic,

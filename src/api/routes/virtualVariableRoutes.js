@@ -6,6 +6,7 @@ const mqttSubscriptionRepository = require('../../repositories/mqttSubscriptionR
 const mqttPublishRuleRepository  = require('../../repositories/mqttPublishRuleRepository');
 const VirtualVariable            = require('../../domain/VirtualVariable');
 const variableService            = require('../../services/variableService');
+const discoveryService           = require('../../services/mqttDiscoveryService');
 const { validateVirtualVariable } = require('../../validation/virtualVariableValidation');
 
 const router = express.Router();
@@ -37,12 +38,19 @@ router.post('/', (req, res) => {
   if (v.initialValue !== null && v.initialValue !== undefined) {
     variableService.setValue(v.id, v.initialValue, 'initial');
   }
+  // Auto-publish HA discovery if haEnabled
+  if (v.haEnabled) {
+    discoveryService.publishSingleDiscovery(v);
+  }
   res.status(201).json({ ...v, ...(variableService.getVariableState(v.id) || {}) });
 });
 
 router.put('/:id', (req, res) => {
   const existing = virtualVariableRepository.getById(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Not found' });
+
+  // Snapshot old state for discovery comparison
+  const oldVariable = { ...existing };
 
   const body = req.body || {};
   const merged = { ...existing, ...body };
@@ -61,6 +69,10 @@ router.put('/:id', (req, res) => {
     id: item.id, createdAt: item.createdAt, updatedAt: new Date().toISOString(),
     name: body.name ? body.name.trim() : item.name,
   }));
+
+  // Notify HA discovery about changes
+  discoveryService.onVariableChanged(req.params.id, oldVariable, updated);
+
   res.json({ ...updated, ...(variableService.getVariableState(req.params.id) || {}) });
 });
 
@@ -98,6 +110,11 @@ router.delete('/:id', (req, res) => {
       subscriptions: referencingSubs.map((s) => ({ id: s.id, label: s.label })),
       publishRules:  referencingRules.map((r) => ({ id: r.id, label: r.label })),
     });
+  }
+
+  // Cleanup HA discovery before deletion
+  if (existing.haEnabled) {
+    discoveryService.removeSingleDiscovery(existing);
   }
 
   virtualVariableRepository.remove(req.params.id);

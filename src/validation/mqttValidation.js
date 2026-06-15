@@ -50,6 +50,21 @@ function validateMqttConfig(payload) {
   if (payload.tls !== undefined && typeof payload.tls !== 'boolean') {
     errors.push('tls must be a boolean');
   }
+  if (payload.discoveryEnabled !== undefined && typeof payload.discoveryEnabled !== 'boolean') {
+    errors.push('discoveryEnabled must be a boolean');
+  }
+  if (payload.discoveryPrefix !== undefined && typeof payload.discoveryPrefix !== 'string') {
+    errors.push('discoveryPrefix must be a string');
+  }
+  if (payload.discoveryDeviceName !== undefined && typeof payload.discoveryDeviceName !== 'string') {
+    errors.push('discoveryDeviceName must be a string');
+  }
+  if (payload.discoveryDeviceId !== undefined) {
+    const id = String(payload.discoveryDeviceId);
+    if (!/^[a-zA-Z0-9_-]+$/.test(id)) {
+      errors.push('discoveryDeviceId may only contain letters, digits, hyphens, and underscores');
+    }
+  }
   return { isValid: errors.length === 0, errors };
 }
 

@@ -7,6 +7,7 @@ class VirtualVariable {
     unit         = '',
     writable     = true,
     enabled      = true,
+    haEnabled    = false,
     description  = '',
     initialValue = null,
     createdAt,
@@ -19,6 +20,7 @@ class VirtualVariable {
     this.unit         = String(unit || '');
     this.writable     = writable !== false;
     this.enabled      = enabled !== false;
+    this.haEnabled    = !!haEnabled;
     this.description  = String(description || '');
     this.initialValue = initialValue;
     this.createdAt    = createdAt;
