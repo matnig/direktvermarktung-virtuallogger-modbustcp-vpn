@@ -32,6 +32,24 @@ function resolveSourceValue(mapping, registerStates) {
     return { value: vs.currentValue, name: def.name || mapping.sourceId, lastReadAt: vs.lastUpdatedAt };
   }
 
+  // Sum of multiple internal registers (scaled values)
+  if (mapping.sourceType === 'register_sum') {
+    const ids = Array.isArray(mapping.sourceIds) ? mapping.sourceIds : [];
+    if (ids.length === 0) throw new Error('register_sum: sourceIds is empty');
+    let sum = 0;
+    const names = [];
+    for (const id of ids) {
+      const r = registerStates[id];
+      if (!r) throw new Error('register_sum: source register not in runtime state');
+      if (r.error) throw new Error('register_sum: ' + (r.name || id) + ': ' + r.error);
+      const v = r.scaledValue ?? r.rawValue;
+      if (v == null) throw new Error('register_sum: ' + (r.name || id) + ' has no value');
+      sum += Number(v);
+      names.push(r.name || id);
+    }
+    return { value: sum, name: 'Σ(' + names.join('+') + ')', lastReadAt: new Date().toISOString() };
+  }
+
   // Legacy or sourceType === 'register'
   const regId = mapping.sourceId || mapping.sourceRegisterId;
   const reg   = registerStates[regId];
@@ -97,10 +115,26 @@ function writeToTarget(mapping, transformed) {
   return { kind: 'external', address: extReg.address, dataType: extReg.dataType, registerType: extReg.registerType || 'holding' };
 }
 
+// ── Holding → Input echo mirrors ──────────────────────────────────────
+// EWE protocol: the setpoint EWE writes to holding 0/1 must be echoed back
+// on input 10/11 (Rückwert Sollwert) so EWE can confirm receipt. Raw 16-bit
+// word copy — no decode/scale, avoids sign issues.
+const HOLDING_TO_INPUT_ECHO = [
+  { holdingStart: 0, inputStart: 10, count: 2 }, // EWE Sollwert → Rückwert
+];
+
+function runEchoMirrors() {
+  for (const rule of HOLDING_TO_INPUT_ECHO) {
+    const words = externalServerService.readWords(rule.holdingStart, rule.count);
+    externalServerService.writeInputWords(rule.inputStart, words);
+  }
+}
+
 // ── Unified mapping cycle ─────────────────────────────────────────────
 
 function runMappingCycle() {
   const { registerStates } = runtimeService.getRuntimeState();
+  try { runEchoMirrors(); } catch (e) { console.error('[BridgeService] echo error:', e.message); }
 
   // All enabled mappings that are NOT purely external→internal (those are event-driven)
   const mappings = mappingRepository.list().filter((m) => {

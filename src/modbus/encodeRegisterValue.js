@@ -5,7 +5,7 @@ function encodeRegisterValue(value, dataType) {
   }
 
   const is32 = dataType === 'uint32' || dataType === 'int32' || dataType === 'float32';
-  const buf  = Buffer.alloc(is32 ? 4 : 2);
+  const buf  = Buffer.alloc(is64 ? 8 : is32 ? 4 : 2);
 
   if (typeof value !== 'number' || !isFinite(value)) {
     console.warn(`[encode] non-finite value (${value}) for dataType ${dataType}, substituting 0`);

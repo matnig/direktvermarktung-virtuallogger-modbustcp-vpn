@@ -34,7 +34,7 @@ function validateRegister(payload) {
   }
 
   if (!DATA_TYPES.has(payload.dataType)) {
-    errors.push('dataType must be one of: uint16, int16, uint32, int32, float32, bool');
+    errors.push('dataType must be one of: uint16, int16, uint32, int32, float32, float64, bool');
   }
 
   const scale = Number(payload.scale ?? 1);

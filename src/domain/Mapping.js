@@ -14,6 +14,7 @@ class Mapping {
     // New generalized fields (optional; if present, override legacy)
     sourceType,
     sourceId,
+    sourceIds,
     targetType,
     targetId,
     // Split 32-bit to two 16-bit external registers
@@ -35,6 +36,7 @@ class Mapping {
     // Generalized
     this.sourceType = sourceType || null;
     this.sourceId   = sourceId   || null;
+    this.sourceIds  = Array.isArray(sourceIds) ? sourceIds : [];
     this.targetType = targetType || null;
     this.targetId   = targetId   || null;
     // Split mode
