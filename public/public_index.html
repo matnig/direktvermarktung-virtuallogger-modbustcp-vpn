@@ -500,6 +500,7 @@
           <select name="sourceType" id="mapping-src-type">
             <option value="register">Internal register</option>
             <option value="variable">Virtual variable</option>
+            <option value="register_sum">Register-Summe (Σ)</option>
           </select>
         </label>
         <div id="mapping-src-reg-row">
@@ -510,6 +511,11 @@
         <div id="mapping-src-var-row" style="display:none;">
           <label><span data-i18n="mapping.form.sourceId">Source variable</span>
             <select id="mapping-src-var-select"></select>
+          </label>
+        </div>
+        <div id="mapping-src-sum-row" style="display:none;">
+          <label><span>Quell-Register (Summe) — Mehrfachauswahl mit Strg/Cmd</span>
+            <select id="mapping-src-sum-select" multiple size="6" style="height:auto;"></select>
           </label>
         </div>
         <label><span data-i18n="mapping.form.targetType">Target type</span>
@@ -1222,6 +1228,7 @@
           `<option value="${r.id}">${esc((srcMap[r.sourceId] || '?') + ' / ' + r.name)} (${r.registerType}@${r.address})</option>`
         ).join('');
         document.getElementById('mapping-src-select').innerHTML = regOpts || '<option value="">—</option>';
+        document.getElementById('mapping-src-sum-select').innerHTML = regOpts || '';
         applyProfileSel.innerHTML = profiles.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')
           || `<option value="">${t('list.noProfiles')}</option>`;
 
@@ -1517,7 +1524,7 @@
             const dirLabel = (srcType === 'register' && tgtType === 'external' && m.direction)
               ? t('mapping.direction.' + (m.direction === 'internal_to_external' ? 'i2e' : m.direction === 'external_to_internal' ? 'e2i' : 'bidi'))
               : '';
-            const typeBadge = `<span class="mapping-type-badge">${esc(t('mapping.sourceType.' + srcType))} \u2192 ${esc(t('mapping.targetType.' + tgtType))}</span>`;
+            const typeBadge = `<span class="mapping-type-badge">${esc(srcType === 'register_sum' ? 'Register-Summe' : t('mapping.sourceType.' + srcType))} \u2192 ${esc(t('mapping.targetType.' + tgtType))}</span>`;
             const splitBadge = m.splitTarget ? `<span class="mapping-type-badge" style="background:#e8f4f8;">${esc(t('mapping.split.badge'))}</span>` : '';
             const xfm = transformSummary(m.transforms);
             const xfmHtml = xfm
@@ -1657,6 +1664,7 @@
         const isSplit  = tgtType === 'external' && document.getElementById('mapping-split-target').checked;
         document.getElementById('mapping-src-reg-row').style.display  = srcType === 'register' ? '' : 'none';
         document.getElementById('mapping-src-var-row').style.display  = srcType === 'variable' ? '' : 'none';
+        document.getElementById('mapping-src-sum-row').style.display  = srcType === 'register_sum' ? '' : 'none';
         document.getElementById('mapping-tgt-ext-row').style.display  = tgtType === 'external' ? '' : 'none';
         document.getElementById('mapping-tgt-var-row').style.display  = tgtType === 'variable' ? '' : 'none';
         document.getElementById('mapping-tgt-int-row').style.display  = tgtType === 'internal' ? '' : 'none';
@@ -1720,6 +1728,10 @@
         toggleMappingFields();
         if (srcType === 'register' && item.sourceRegisterId) document.getElementById('mapping-src-select').value = item.sourceRegisterId;
         if (srcType === 'variable' && item.sourceId) document.getElementById('mapping-src-var-select').value = item.sourceId;
+        if (srcType === 'register_sum' && Array.isArray(item.sourceIds)) {
+          const _want = new Set(item.sourceIds);
+          Array.from(document.getElementById('mapping-src-sum-select').options).forEach(o => { o.selected = _want.has(o.value); });
+        }
         if (tgtType === 'external') {
           document.getElementById('mapping-split-target').checked = !!item.splitTarget;
           if (item.splitTarget) {
@@ -1990,6 +2002,8 @@
         if (srcType === 'register') {
           p.sourceRegisterId = raw.sourceRegisterId;
           p.sourceId = raw.sourceRegisterId;
+        } else if (srcType === 'register_sum') {
+          p.sourceIds = Array.from(document.getElementById('mapping-src-sum-select').selectedOptions).map(o => o.value);
         } else {
           p.sourceId = document.getElementById('mapping-src-var-select').value;
         }
