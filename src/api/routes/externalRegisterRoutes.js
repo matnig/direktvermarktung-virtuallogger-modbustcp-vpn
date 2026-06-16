@@ -47,8 +47,27 @@ router.get('/values', (req, res) => {
       bin,
       raw,
       value,
+      word: (words && words.length) ? (words[0] & 0xffff) : 0,
     };
   });
+
+  // Pair up "<X> Low" / "<X> High" registers (consecutive address, same type)
+  // into a combined unsigned 32-bit value, shown on the Low entry.
+  const byKey = {};
+  out.forEach((r) => { byKey[r.registerType + ':' + r.address] = r; });
+  out.forEach((r) => {
+    const nm = (r.name || '').trim();
+    if (/low$/i.test(nm)) {
+      const hi = byKey[r.registerType + ':' + (r.address + 1)];
+      if (hi && /high$/i.test((hi.name || '').trim())) {
+        const combined = (((hi.word << 16) >>> 0) | (r.word & 0xffff)) >>> 0;
+        r.combined32 = combined;
+        r.combinedPrecision = r.precision;
+        hi.isHighWordOf = r.address;
+      }
+    }
+  });
+
   res.json(out);
 });
 

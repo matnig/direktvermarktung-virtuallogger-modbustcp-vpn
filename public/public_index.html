@@ -504,6 +504,7 @@
             <th style="padding:4px 8px;">Bitwert</th>
             <th style="padding:4px 8px;">Hex</th>
             <th style="padding:4px 8px;">Wert</th>
+            <th style="padding:4px 8px;">Kombiniert (32-bit)</th>
           </tr>
         </thead>
         <tbody id="extreg-values-body"></tbody>
@@ -1076,21 +1077,31 @@
         if (!body) return;
         try {
           const rows = await fetchJson('/api/external-registers/values');
-          if (!rows.length) { body.innerHTML = `<tr><td colspan="5" class="hint" style="padding:6px 8px;">${esc(t('extreg.list.none'))}</td></tr>`; return; }
+          if (!rows.length) { body.innerHTML = `<tr><td colspan="6" class="hint" style="padding:6px 8px;">${esc(t('extreg.list.none'))}</td></tr>`; return; }
           body.innerHTML = rows.map(r => {
             const bits = (r.bin || []).join(' ') || '—';
             const hex  = (r.hex || []).join(' ') || '—';
             const val  = (r.value === null || r.value === undefined) ? '—' : `${r.value}${r.unit ? ' ' + esc(r.unit) : ''}`;
+            let comb = '';
+            if (r.combined32 !== undefined && r.combined32 !== null) {
+              const kw = (r.combined32 / 1000);
+              comb = `<strong>${r.combined32}${r.unit ? ' ' + esc(r.unit) : ''}</strong> <span class="hint">(${kw} k${esc(r.unit || '')})</span>`;
+            } else if (r.isHighWordOf !== undefined) {
+              comb = `<span class="hint">↑ High-Word</span>`;
+            } else {
+              comb = '—';
+            }
             return `<tr style="border-bottom:1px solid var(--border,#eee);">
               <td style="padding:4px 8px;"><strong>${esc(r.name)}</strong></td>
               <td style="padding:4px 8px;">${esc(r.registerType)}@${r.address}</td>
               <td style="padding:4px 8px;font-family:monospace;">${bits}</td>
               <td style="padding:4px 8px;font-family:monospace;">${hex}</td>
               <td style="padding:4px 8px;font-family:monospace;">${esc(String(val))}</td>
+              <td style="padding:4px 8px;font-family:monospace;">${comb}</td>
             </tr>`;
           }).join('');
         } catch (err) {
-          body.innerHTML = `<tr><td colspan="5" class="no-data err" style="padding:6px 8px;">${esc(String(err?.error || err))}</td></tr>`;
+          body.innerHTML = `<tr><td colspan="6" class="no-data err" style="padding:6px 8px;">${esc(String(err?.error || err))}</td></tr>`;
         }
       }
 
