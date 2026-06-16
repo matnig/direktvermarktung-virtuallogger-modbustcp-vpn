@@ -475,6 +475,7 @@
         </div>
         <div class="row">
           <label><span data-i18n="extreg.form.unit">Unit</span><input name="unit" /></label>
+          <label><span data-i18n="extreg.form.precision">Nachkommastellen</span><input name="precision" id="extreg-precision" type="number" min="0" max="6" step="1" value="0" /></label>
           <label id="extreg-writable-label" style="display:flex;align-items:center;gap:8px;margin-top:24px;">
             <input type="checkbox" name="writable" id="extreg-writable" style="width:auto;margin:0;" />
             <span data-i18n="extreg.form.writable">Writable by external client</span>
@@ -489,6 +490,24 @@
         <h2 data-i18n="extreg.title">External Registers</h2>
         <ul id="extreg-list"></ul>
       </div>
+    </div>
+
+    <!-- ── External Register Live Values ──────────────────────────── -->
+    <div class="panel" style="margin-top:24px;">
+      <h2 data-i18n="extregval.title">External register values (live)</h2>
+      <p class="hint" data-i18n="extregval.hint">Aktuelle Werte im externen Modbus-Server — Rohwert (Bits/Hex) und numerischer Wert.</p>
+      <table id="extreg-values-table" style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="text-align:left;border-bottom:1px solid var(--border,#ccc);">
+            <th style="padding:4px 8px;">Register</th>
+            <th style="padding:4px 8px;">Typ@Adr</th>
+            <th style="padding:4px 8px;">Bitwert</th>
+            <th style="padding:4px 8px;">Hex</th>
+            <th style="padding:4px 8px;">Wert</th>
+          </tr>
+        </thead>
+        <tbody id="extreg-values-body"></tbody>
+      </table>
     </div>
 
     <!-- ── Mappings ───────────────────────────────────────────────── -->
@@ -1051,6 +1070,30 @@
         }
       }
 
+      // ── External register live values ─────────────────────────────
+      async function refreshExtRegValues() {
+        const body = document.getElementById('extreg-values-body');
+        if (!body) return;
+        try {
+          const rows = await fetchJson('/api/external-registers/values');
+          if (!rows.length) { body.innerHTML = `<tr><td colspan="5" class="hint" style="padding:6px 8px;">${esc(t('extreg.list.none'))}</td></tr>`; return; }
+          body.innerHTML = rows.map(r => {
+            const bits = (r.bin || []).join(' ') || '—';
+            const hex  = (r.hex || []).join(' ') || '—';
+            const val  = (r.value === null || r.value === undefined) ? '—' : `${r.value}${r.unit ? ' ' + esc(r.unit) : ''}`;
+            return `<tr style="border-bottom:1px solid var(--border,#eee);">
+              <td style="padding:4px 8px;"><strong>${esc(r.name)}</strong></td>
+              <td style="padding:4px 8px;">${esc(r.registerType)}@${r.address}</td>
+              <td style="padding:4px 8px;font-family:monospace;">${bits}</td>
+              <td style="padding:4px 8px;font-family:monospace;">${hex}</td>
+              <td style="padding:4px 8px;font-family:monospace;">${esc(String(val))}</td>
+            </tr>`;
+          }).join('');
+        } catch (err) {
+          body.innerHTML = `<tr><td colspan="5" class="no-data err" style="padding:6px 8px;">${esc(String(err?.error || err))}</td></tr>`;
+        }
+      }
+
       // ── Auto-refresh ──────────────────────────────────────────────
       let autoRefreshHandle = null;
 
@@ -1061,6 +1104,7 @@
           autoRefreshHandle = setInterval(() => {
             refreshRuntime(); refreshVpn();
             refreshBridgeConfig().catch(() => {});
+            refreshExtRegValues().catch(() => {});
             refreshVariables().catch(() => {});
             refreshMqtt().catch(() => {});
           }, ms);
@@ -1596,6 +1640,7 @@
           renderMappingStatus(bridgeStatus.bridge);
           renderWriteStatus(bridgeStatus.bridge);
           renderWatchdogStatus(bridgeStatus.watchdog);
+          refreshExtRegValues().catch(() => {});
         } catch (err) { setDebug(err); }
       }
 
@@ -1719,6 +1764,7 @@
         f.address.value     = item.address ?? 0;
         f.dataType.value    = item.dataType || 'uint16';
         f.unit.value        = item.unit || '';
+        f.precision.value   = item.precision ?? 0;
         f.description.value = item.description || '';
         document.getElementById('extreg-register-type').value = item.registerType || 'holding';
         document.getElementById('extreg-writable').checked = !!item.writable;
@@ -1822,6 +1868,7 @@
         e.preventDefault();
         const p = Object.fromEntries(new FormData(e.target).entries());
         p.address      = Number(p.address);
+        p.precision    = Number(p.precision) || 0;
         p.registerType = document.getElementById('extreg-register-type').value || 'holding';
         p.writable     = p.registerType === 'input' ? false : document.getElementById('extreg-writable').checked;
         p.enabled      = true;

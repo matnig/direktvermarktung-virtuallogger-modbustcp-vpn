@@ -9,6 +9,7 @@ class ExternalRegister {
     dataType = 'uint16',
     writable = false,
     unit = '',
+    precision = 0,
     description = '',
     enabled = true,
     createdAt,
@@ -23,6 +24,7 @@ class ExternalRegister {
     // Input registers are read-only from the external client's perspective
     this.writable = this.registerType === 'input' ? false : !!writable;
     this.unit = unit;
+    this.precision = Number.isFinite(Number(precision)) ? Number(precision) : 0;
     this.description = description;
     this.enabled = enabled !== false;
     this.createdAt = createdAt;

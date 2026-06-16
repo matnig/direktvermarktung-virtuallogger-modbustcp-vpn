@@ -34,6 +34,13 @@ function validateExternalRegister(payload) {
     errors.push('enabled must be a boolean');
   }
 
+  if (payload.precision !== undefined) {
+    const precision = Number(payload.precision);
+    if (!Number.isInteger(precision) || precision < 0 || precision > 6) {
+      errors.push('precision must be an integer between 0 and 6');
+    }
+  }
+
   return { isValid: errors.length === 0, errors };
 }
 

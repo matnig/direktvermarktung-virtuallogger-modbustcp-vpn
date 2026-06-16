@@ -6,11 +6,50 @@ const watchdogRepository         = require('../../repositories/watchdogRepositor
 const mqttPublishRuleRepository  = require('../../repositories/mqttPublishRuleRepository');
 const ExternalRegister = require('../../domain/ExternalRegister');
 const { validateExternalRegister, validateNoAddressConflict } = require('../../validation/externalRegisterValidation');
+const externalServerService = require('../../services/externalServerService');
+const { decodeWords } = require('../../modbus/encodeRegisterValue');
 
 const router = express.Router();
 
 router.get('/', (req, res) => {
   res.json(externalRegisterRepository.list());
+});
+
+// Live values currently held in the external Modbus server register space.
+// Returns per register: raw words (+ hex/binary) and the decoded numeric value.
+router.get('/values', (req, res) => {
+  const out = externalRegisterRepository.list().map((r) => {
+    const registerType = r.registerType === 'input' ? 'input' : 'holding';
+    const len = r.length || 1;
+    let words = [];
+    try {
+      words = registerType === 'input'
+        ? externalServerService.readInputWords(r.address, len)
+        : externalServerService.readWords(r.address, len);
+    } catch (e) {
+      words = [];
+    }
+    const raw = decodeWords(words, r.dataType);
+    const prec = Number.isInteger(Number(r.precision)) ? Number(r.precision) : 0;
+    const value = typeof raw === 'number' ? Number(raw.toFixed(prec)) : raw;
+    const hex = words.map((w) => '0x' + (w & 0xffff).toString(16).toUpperCase().padStart(4, '0'));
+    const bin = words.map((w) => (w & 0xffff).toString(2).padStart(16, '0'));
+    return {
+      id: r.id,
+      name: r.name,
+      registerType,
+      address: r.address,
+      dataType: r.dataType,
+      unit: r.unit || '',
+      precision: prec,
+      words,
+      hex,
+      bin,
+      raw,
+      value,
+    };
+  });
+  res.json(out);
 });
 
 router.get('/:id', (req, res) => {
