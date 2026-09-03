@@ -24,6 +24,10 @@ class EinspeisemanagementConfig {
     // --- Akkuspeicher (Intilion) ---
     akkuMaxLadeleistungKw = 50,          // Nulleinspeisungs-Puffer, für Vorsteuerung/Sättigung
 
+    // --- Dargebot / P_kann (aus Strahlung) ---
+    pInstalliertKw = 160,                // installierte PV-Leistung (Module), für Dargebot-Modell
+    strahlungReferenzWm2 = 1000,         // Referenzstrahlung für Vollleistung (W/m²)
+
     // --- Regler (Wechselrichter-Sollwert via LOGO AQ3, Leistungsgrenze in kW) ---
     aktuierungAktiv = false,             // HART: false => kein Schreiben an den WR
     totbandKw = 1.0,                     // Totband um P_limit, verhindert Pendeln
@@ -49,8 +53,16 @@ class EinspeisemanagementConfig {
       akkuSocRegisterId: null,          // Intilion 5002 SoC (%)
       akkuLadeleistungRegisterId: null, // Intilion 5040 Wirkleistung System (neg=laden)
       akkuMaxLadeRegisterId: null,      // Intilion 5027 Max Ladeleistung (kW)
-      logoSourceId: null,               // LOGO Quelle (für spätere Aktuierung)
-      aq3TargetRegisterId: null,        // LOGO Holding-Register AQ3 (WR-Sollwert)
+      logoSourceId: null,               // LOGO Quelle (für Aktuierung)
+      aq3TargetRegisterId: null,        // LOGO Holding 5 (VW10) — WR-Sollwert kW
+      // --- P_kann / Dargebot ---
+      pIstSourceRegisterId: null,       // Sentron PV-Wirkleistung (W) — Ist-Leistung
+      strahlungOstVariableId: null,     // Variable Strahlung Ost (W/m²)
+      strahlungWestVariableId: null,    // Variable Strahlung West (W/m²)
+      pKannTargetRegisterId: null,      // LOGO Holding 11 (VW22) — P_kann kW
+      // --- Netzbetreiber-Stufe an Direktvermarkter ---
+      netzbetreiberOutLowRegisterId: null,  // externes Input-Register "Sollwert Netzbetreiber" Low (W)
+      netzbetreiberOutHighRegisterId: null, // externes Input-Register "Sollwert Netzbetreiber" High (W)
     },
 
     createdAt,
@@ -61,6 +73,8 @@ class EinspeisemanagementConfig {
     this.kontaktStufeProzent = kontaktStufeProzent;
     this.aqSkalaMaxKw = aqSkalaMaxKw;
     this.akkuMaxLadeleistungKw = akkuMaxLadeleistungKw;
+    this.pInstalliertKw = pInstalliertKw;
+    this.strahlungReferenzWm2 = strahlungReferenzWm2;
     this.aktuierungAktiv = aktuierungAktiv;
     this.totbandKw = totbandKw;
     this.reglerAbtastMs = reglerAbtastMs;
@@ -82,6 +96,12 @@ class EinspeisemanagementConfig {
       akkuMaxLadeRegisterId: null,
       logoSourceId: null,
       aq3TargetRegisterId: null,
+      pIstSourceRegisterId: null,
+      strahlungOstVariableId: null,
+      strahlungWestVariableId: null,
+      pKannTargetRegisterId: null,
+      netzbetreiberOutLowRegisterId: null,
+      netzbetreiberOutHighRegisterId: null,
       ...(bindings || {}),
     };
     this.createdAt = createdAt;

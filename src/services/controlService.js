@@ -13,6 +13,15 @@ const runtimeService             = require('./runtimeService');
 const variableService            = require('./variableService');
 const einspeisemanagementService = require('./einspeisemanagementService');
 const logic                      = require('./einspeisemanagementLogic');
+const sourceRepository           = require('../repositories/sourceRepository');
+const registerRepository         = require('../repositories/registerRepository');
+const externalRegisterRepository = require('../repositories/externalRegisterRepository');
+const externalServerService      = require('./externalServerService');
+const ModbusClient               = require('../modbus/modbusClient');
+const { encodeRegisterValue }    = require('../modbus/encodeRegisterValue');
+
+// Eigener Write-Client, getrennt vom Poll-Client
+const writeClient = new ModbusClient();
 
 let _handle = null;
 let _wrSollwertKw = null;   // Integrator-Zustand des einseitigen Begrenzers
@@ -105,8 +114,63 @@ function computeOnce() {
     if (regler.wrSollwertKw != null) _wrSollwertKw = regler.wrSollwertKw;
   }
 
-  // --- Aktuierung: in v1 bewusst NICHT vorhanden (kein Schreibpfad). ---
-  const aktuierungMoeglich = Boolean(cfg.aktuierungAktiv && b.logoSourceId && b.aq3TargetRegisterId);
+  // --- P_ist (Sentron PV, W -> kW) ---
+  const pIstW = readRegister(b.pIstSourceRegisterId);
+  const pIstKw = pIstW == null ? null : pIstW / 1000;
+
+  // --- Dargebot aus Strahlung Ost/West -> P_kann ---
+  const strOst = readVariable(b.strahlungOstVariableId);
+  const strWest = readVariable(b.strahlungWestVariableId);
+  const dargebot = logic.dargebotKw(strOst, strWest, cfg);
+  const drosselAktiv = Boolean(regler && regler.drosselAktiv);
+  const pKann = logic.pKannKw({ drosselAktiv, pIstKw, dargebotKw: dargebot });
+
+  // --- Schreiben ---
+  const geschrieben = { aq3Kw: null, pKannKw: null, netzbetreiberW: null };
+  const logoSource = b.logoSourceId ? sourceRepository.getById(b.logoSourceId) : null;
+
+  // (1) AQ3 WR-Sollwert -> LOGO (nur bei aktuierungAktiv; Failsafe bei fehlenden Eingaben)
+  if (cfg.aktuierungAktiv && logoSource && b.aq3TargetRegisterId) {
+    const reg = registerRepository.getById(b.aq3TargetRegisterId);
+    if (reg) {
+      const failsafe = (pLimitKw == null || napEinspeisungKw == null || _wrSollwertKw == null);
+      const sollKw = failsafe ? Number(cfg.failsafeSollwertKw) : _wrSollwertKw;
+      const words = encodeRegisterValue(Math.round(sollKw), reg.dataType);
+      writeClient.writeRegisterWords(logoSource, reg.address, words)
+        .catch((e) => console.error('[controlService] AQ3-Write:', e.message));
+      geschrieben.aq3Kw = Math.round(sollKw);
+    }
+  }
+
+  // (2) P_kann -> LOGO AQ2 (nur bei aktuierungAktiv)
+  if (cfg.aktuierungAktiv && logoSource && b.pKannTargetRegisterId && pKann != null) {
+    const reg = registerRepository.getById(b.pKannTargetRegisterId);
+    if (reg) {
+      const words = encodeRegisterValue(Math.round(pKann), reg.dataType);
+      writeClient.writeRegisterWords(logoSource, reg.address, words)
+        .catch((e) => console.error('[controlService] P_kann-Write:', e.message));
+      geschrieben.pKannKw = Math.round(pKann);
+    }
+  }
+
+  // (3) Netzbetreiber-Stufe -> Direktvermarkter (externes Input-Register, W, 32-bit split) — immer
+  if (netzbetreiberKw != null && b.netzbetreiberOutLowRegisterId && b.netzbetreiberOutHighRegisterId) {
+    const lo = externalRegisterRepository.getById(b.netzbetreiberOutLowRegisterId);
+    const hi = externalRegisterRepository.getById(b.netzbetreiberOutHighRegisterId);
+    if (lo && hi) {
+      const w = Math.max(0, Math.round(netzbetreiberKw * 1000)) >>> 0; // kW -> W
+      const writeFn = (er, word) => er.registerType === 'input'
+        ? externalServerService.writeInputWords(er.address, [word])
+        : externalServerService.writeWords(er.address, [word]);
+      try {
+        writeFn(lo, w & 0xFFFF);
+        writeFn(hi, (w >>> 16) & 0xFFFF);
+        geschrieben.netzbetreiberW = w;
+      } catch (e) { console.error('[controlService] Netzbetreiber-Out:', e.message); }
+    }
+  }
+
+  const aktuierungMoeglich = Boolean(cfg.aktuierungAktiv && logoSource && b.aq3TargetRegisterId);
 
   _state = {
     zeit: new Date().toISOString(),
@@ -117,11 +181,16 @@ function computeOnce() {
     pLimitKw,
     napEinspeisungKw,
     akku,
+    pIstKw,
+    dargebotKw: dargebot,
+    pKannKw: pKann,
+    drosselAktiv,
     wrSollwertKw: _wrSollwertKw,
     regler,
     aktuierungAktiv: Boolean(cfg.aktuierungAktiv),
     aktuierungMoeglich,
-    aktuiert: false, // v1: es wird nie geschrieben
+    aktuiert: geschrieben.aq3Kw != null,
+    geschrieben,
     inputsFehlen: fehlt,
     pRef100Kw: cfg.pRef100Kw,
   };

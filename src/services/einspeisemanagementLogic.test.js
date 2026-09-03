@@ -6,6 +6,8 @@ const {
   pLimitKw,
   effektiveEinspeisungKw,
   reglerSchritt,
+  dargebotKw,
+  pKannKw,
 } = require('./einspeisemanagementLogic');
 
 const cfg = (over = {}) => new EinspeisemanagementConfig({ pRef100Kw: 125, ...over });
@@ -119,4 +121,35 @@ test('Akku-Vorsteuerung deaktiviert: gemessener Wert unverändert', () => {
   const c = cfg({ akkuVorsteuerung: false });
   const eff = effektiveEinspeisungKw(5, { verfuegbar: true, ladeleistungKw: 30, maxLadeleistungKw: 30 }, c);
   assert.strictEqual(eff, 5);
+});
+
+// --- Dargebot ---
+
+test('Dargebot: volle Referenzstrahlung => installierte Leistung', () => {
+  const c = cfg({ pInstalliertKw: 160, strahlungReferenzWm2: 1000 });
+  assert.strictEqual(dargebotKw(1000, 1000, c), 160);
+});
+
+test('Dargebot: Mittel aus Ost/West', () => {
+  const c = cfg({ pInstalliertKw: 160, strahlungReferenzWm2: 1000 });
+  assert.strictEqual(dargebotKw(1000, 0, c), 80); // Mittel 500 -> 50%
+});
+
+test('Dargebot: keine Strahlung => null', () => {
+  const c = cfg({ pInstalliertKw: 160 });
+  assert.strictEqual(dargebotKw(null, undefined, c), null);
+});
+
+// --- P_kann-Auswahl ---
+
+test('P_kann: ohne Drosselung = Ist-Leistung', () => {
+  assert.strictEqual(pKannKw({ drosselAktiv: false, pIstKw: 92, dargebotKw: 140 }), 92);
+});
+
+test('P_kann: mit Drosselung = Dargebot', () => {
+  assert.strictEqual(pKannKw({ drosselAktiv: true, pIstKw: 40, dargebotKw: 140 }), 140);
+});
+
+test('P_kann: ohne Ist fällt auf Dargebot zurück', () => {
+  assert.strictEqual(pKannKw({ drosselAktiv: false, pIstKw: null, dargebotKw: 140 }), 140);
 });

@@ -83,10 +83,31 @@ function reglerSchritt({ napEinspeisungKw, pLimitKw: limit, wrSollwertAktuellKw,
   };
 }
 
+// --- 5) Dargebot (theoretisch mögliche Leistung) aus Strahlung Ost/West ---
+// Lineares Modell: P_kann = (mittlere Strahlung / Referenzstrahlung) × installierte Leistung.
+// GESCHÄTZT — bei realen Tagesdaten kalibrieren. Gibt null, wenn keine Strahlung vorliegt.
+function dargebotKw(strahlungOstWm2, strahlungWestWm2, config) {
+  const ref = Number(config.strahlungReferenzWm2) || 1000;
+  const pInst = Number(config.pInstalliertKw) || 0;
+  const vals = [strahlungOstWm2, strahlungWestWm2].filter(isNum);
+  if (!vals.length || ref <= 0) return null;
+  const mittel = vals.reduce((a, b) => a + b, 0) / vals.length;
+  return Math.max(0, (mittel / ref) * pInst);
+}
+
+// --- 6) P_kann-Auswahl: ohne Drosselung = Ist-Leistung, mit Drosselung = Dargebot ---
+// (Ohne Drossel ist Ist = Kann, also den genauen Messwert nehmen; bei Drosselung liegt Ist unter Kann.)
+function pKannKw({ drosselAktiv, pIstKw, dargebotKw: dg }) {
+  if (!drosselAktiv && isNum(pIstKw)) return Math.max(0, pIstKw);
+  return isNum(dg) ? dg : null;
+}
+
 module.exports = {
   clamp,
   netzbetreiberStufe,
   pLimitKw,
   effektiveEinspeisungKw,
   reglerSchritt,
+  dargebotKw,
+  pKannKw,
 };

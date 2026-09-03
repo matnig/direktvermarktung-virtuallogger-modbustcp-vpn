@@ -19,6 +19,8 @@ function validateEinspeisemanagement(payload = {}) {
   numRange('pRef100Kw', 0.1, 10000);
   numRange('aqSkalaMaxKw', 0.1, 10000);
   numRange('akkuMaxLadeleistungKw', 0, 10000);
+  numRange('pInstalliertKw', 0, 100000);
+  numRange('strahlungReferenzWm2', 1, 5000);
   numRange('totbandKw', 0, 1000);
   numRange('reglerAbtastMs', 200, 60000);
   numRange('reglerVerstaerkung', 0, 100);
@@ -70,6 +72,8 @@ function validateEinspeisemanagement(payload = {}) {
         'direktvermarkterVariableId', 'kontaktI1RegisterId', 'kontaktI2RegisterId',
         'kontaktI3RegisterId', 'akkuSocRegisterId', 'akkuLadeleistungRegisterId',
         'akkuMaxLadeRegisterId', 'logoSourceId', 'aq3TargetRegisterId',
+        'pIstSourceRegisterId', 'strahlungOstVariableId', 'strahlungWestVariableId',
+        'pKannTargetRegisterId', 'netzbetreiberOutLowRegisterId', 'netzbetreiberOutHighRegisterId',
       ];
       for (const k of idKeys) {
         if (b[k] !== undefined && b[k] !== null && typeof b[k] !== 'string') {
