@@ -906,8 +906,9 @@
           <h3 data-i18n="em.bindings.title">Signal assignment</h3>
           <label><span data-i18n="em.bind.direktvermarkter">Direct marketer variable</span>
             <select id="em-bind-dv"></select></label>
-          <label><span data-i18n="em.bind.nap">Grid node registers (multi)</span>
+          <label><span data-i18n="em.bind.nap">Grid node registers (summed)</span>
             <select id="em-bind-nap" multiple size="4"></select></label>
+          <p class="hint" data-i18n="em.bind.napHint" style="margin:-6px 0 8px;">Select all registers to be summed — hold Ctrl/Cmd to pick more than one.</p>
           <div class="row">
             <label><span data-i18n="em.bind.i1">Contact I1</span><select id="em-bind-i1"></select></label>
             <label><span data-i18n="em.bind.i2">Contact I2</span><select id="em-bind-i2"></select></label>
@@ -919,6 +920,28 @@
           <button type="submit" data-i18n="em.save" style="width:auto;padding:8px 20px;">Save</button>
         </form>
       </div>
+    </div>
+
+    <!-- ── Test-Modus: manuell schreiben ────────────────────────────── -->
+    <div class="panel" style="margin-top:24px;">
+      <h2 data-i18n="tw.title">Test mode — manual write</h2>
+      <p class="hint" data-i18n="tw.warn" style="color:#856404;background:#fff3cd;border-left:3px solid #ffc107;padding:6px 10px;border-radius:4px;">Writes a real value to the device.</p>
+      <div class="row">
+        <label><span data-i18n="tw.source">Target (source)</span><select id="tw-source"></select></label>
+        <label><span data-i18n="tw.address">Holding address</span><input type="number" id="tw-address" min="0" max="65535" placeholder="0" /></label>
+        <label><span data-i18n="tw.dataType">Data type</span>
+          <select id="tw-dtype">
+            <option value="uint16" selected>uint16</option>
+            <option value="int16">int16</option>
+            <option value="uint32">uint32</option>
+            <option value="int32">int32</option>
+            <option value="float32">float32</option>
+          </select>
+        </label>
+        <label><span data-i18n="tw.value">Value</span><input type="number" id="tw-value" step="any" placeholder="0" /></label>
+      </div>
+      <button id="tw-write-btn" style="width:auto;padding:8px 20px;" data-i18n="tw.write">Write</button>
+      <pre id="tw-result" style="margin-top:10px;display:none;"></pre>
     </div>
 
     <!-- ── Software update ──────────────────────────────────────────── -->
@@ -2731,6 +2754,45 @@
         } catch (err) { showAlert(errorMessage(err), 'error'); setDebug(err); }
       });
 
+      // ── Test-Modus: manuell schreiben ─────────────────────────────
+      async function refreshTestWriteSources() {
+        try {
+          const sources = await fetchJson('/api/sources');
+          const sel = document.getElementById('tw-source');
+          const prev = sel.value;
+          sel.innerHTML = sources.map(s =>
+            `<option value="${esc(s.id)}">${esc(s.name)} (${esc(s.host)}:${s.port})</option>`).join('');
+          if (prev) sel.value = prev;
+        } catch (e) { setDebug(e); }
+      }
+
+      document.getElementById('tw-write-btn').addEventListener('click', async () => {
+        const sourceId = document.getElementById('tw-source').value;
+        const address  = document.getElementById('tw-address').value;
+        const dataType = document.getElementById('tw-dtype').value;
+        const value    = document.getElementById('tw-value').value;
+        if (!sourceId || address === '' || value === '') {
+          showAlert(t('tw.value') + ' / ' + t('tw.address') + ' ?', 'error'); return;
+        }
+        if (!confirm(t('tw.confirm'))) return;
+        const resEl = document.getElementById('tw-result');
+        resEl.style.display = 'block'; resEl.textContent = '…';
+        try {
+          const r = await fetchJson('/api/manual-write', {
+            method: 'POST',
+            body: JSON.stringify({ sourceId, address: Number(address), dataType, value: Number(value) }),
+          });
+          resEl.textContent =
+            `${t('tw.done')}: ${r.value} → addr ${r.address} (${r.dataType})\n` +
+            `words: ${JSON.stringify(r.words)}\n` +
+            `${t('tw.readback')}: ${r.readback}`;
+          showAlert(t('tw.done'), 'success');
+        } catch (err) {
+          resEl.textContent = errorMessage(err);
+          showAlert(errorMessage(err), 'error');
+        }
+      });
+
       // ── Software update ───────────────────────────────────────────
       function renderUpdateVersion(data) {
         const v = (data && data.version) || {};
@@ -2910,6 +2972,7 @@
       refreshMqtt().catch(setDebug);
       refreshNetwork().catch(setDebug);
       refreshEinspeisemanagement().catch(setDebug);
+      refreshTestWriteSources().catch(setDebug);
       refreshUpdateVersion(false).catch(setDebug);
       setInterval(() => {
         fetchJson('/api/einspeisemanagement/status')

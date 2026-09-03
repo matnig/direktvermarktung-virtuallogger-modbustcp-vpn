@@ -16,6 +16,7 @@ const mqttPublishRuleRoutes  = require('./routes/mqttPublishRuleRoutes');
 const networkRoutes          = require('./routes/networkRoutes');
 const einspeisemanagementRoutes = require('./routes/einspeisemanagementRoutes');
 const updateRoutes           = require('./routes/updateRoutes');
+const manualWriteRoutes      = require('./routes/manualWriteRoutes');
 const { DATA_TYPES, REGISTER_TYPES } = require('../validation/registerValidation');
 
 const router = express.Router();
@@ -48,5 +49,6 @@ router.use('/mqtt-publish-rules', mqttPublishRuleRoutes);
 router.use('/network',           networkRoutes);
 router.use('/einspeisemanagement', einspeisemanagementRoutes);
 router.use('/update',            updateRoutes);
+router.use('/manual-write',      manualWriteRoutes);
 
 module.exports = router;
