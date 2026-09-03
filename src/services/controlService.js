@@ -125,50 +125,57 @@ function computeOnce() {
   const drosselAktiv = Boolean(regler && regler.drosselAktiv);
   const pKann = logic.pKannKw({ drosselAktiv, pIstKw, dargebotKw: dargebot });
 
-  // --- Schreiben ---
+  // --- Schreiben (jeder Block einzeln abgesichert: ein Schreibfehler darf den Regler NIE einfrieren) ---
   const geschrieben = { aq3Kw: null, pKannKw: null, netzbetreiberW: null };
-  const logoSource = b.logoSourceId ? sourceRepository.getById(b.logoSourceId) : null;
+  const schreibFehler = [];
+  let logoSource = null;
+  try { logoSource = b.logoSourceId ? sourceRepository.getById(b.logoSourceId) : null; }
+  catch (e) { schreibFehler.push('logoSource: ' + e.message); }
 
   // (1) AQ3 WR-Sollwert -> LOGO (nur bei aktuierungAktiv; Failsafe bei fehlenden Eingaben)
-  if (cfg.aktuierungAktiv && logoSource && b.aq3TargetRegisterId) {
-    const reg = registerRepository.getById(b.aq3TargetRegisterId);
-    if (reg) {
-      const failsafe = (pLimitKw == null || napEinspeisungKw == null || _wrSollwertKw == null);
-      const sollKw = failsafe ? Number(cfg.failsafeSollwertKw) : _wrSollwertKw;
-      const words = encodeRegisterValue(Math.round(sollKw), reg.dataType);
-      writeClient.writeRegisterWords(logoSource, reg.address, words)
-        .catch((e) => console.error('[controlService] AQ3-Write:', e.message));
-      geschrieben.aq3Kw = Math.round(sollKw);
+  try {
+    if (cfg.aktuierungAktiv && logoSource && b.aq3TargetRegisterId) {
+      const reg = registerRepository.getById(b.aq3TargetRegisterId);
+      if (reg) {
+        const failsafe = (pLimitKw == null || napEinspeisungKw == null || _wrSollwertKw == null);
+        const sollKw = failsafe ? Number(cfg.failsafeSollwertKw) : _wrSollwertKw;
+        const words = encodeRegisterValue(Math.round(sollKw), reg.dataType);
+        writeClient.writeRegisterWords(logoSource, reg.address, words)
+          .catch((e) => console.error('[controlService] AQ3-Write:', e.message));
+        geschrieben.aq3Kw = Math.round(sollKw);
+      } else { schreibFehler.push('AQ3: Zielregister nicht gefunden'); }
     }
-  }
+  } catch (e) { schreibFehler.push('AQ3: ' + e.message); }
 
   // (2) P_kann -> LOGO AQ2 (nur bei aktuierungAktiv)
-  if (cfg.aktuierungAktiv && logoSource && b.pKannTargetRegisterId && pKann != null) {
-    const reg = registerRepository.getById(b.pKannTargetRegisterId);
-    if (reg) {
-      const words = encodeRegisterValue(Math.round(pKann), reg.dataType);
-      writeClient.writeRegisterWords(logoSource, reg.address, words)
-        .catch((e) => console.error('[controlService] P_kann-Write:', e.message));
-      geschrieben.pKannKw = Math.round(pKann);
+  try {
+    if (cfg.aktuierungAktiv && logoSource && b.pKannTargetRegisterId && pKann != null) {
+      const reg = registerRepository.getById(b.pKannTargetRegisterId);
+      if (reg) {
+        const words = encodeRegisterValue(Math.round(pKann), reg.dataType);
+        writeClient.writeRegisterWords(logoSource, reg.address, words)
+          .catch((e) => console.error('[controlService] P_kann-Write:', e.message));
+        geschrieben.pKannKw = Math.round(pKann);
+      }
     }
-  }
+  } catch (e) { schreibFehler.push('P_kann: ' + e.message); }
 
   // (3) Netzbetreiber-Stufe -> Direktvermarkter (externes Input-Register, W, 32-bit split) — immer
-  if (netzbetreiberKw != null && b.netzbetreiberOutLowRegisterId && b.netzbetreiberOutHighRegisterId) {
-    const lo = externalRegisterRepository.getById(b.netzbetreiberOutLowRegisterId);
-    const hi = externalRegisterRepository.getById(b.netzbetreiberOutHighRegisterId);
-    if (lo && hi) {
-      const w = Math.max(0, Math.round(netzbetreiberKw * 1000)) >>> 0; // kW -> W
-      const writeFn = (er, word) => er.registerType === 'input'
-        ? externalServerService.writeInputWords(er.address, [word])
-        : externalServerService.writeWords(er.address, [word]);
-      try {
+  try {
+    if (netzbetreiberKw != null && b.netzbetreiberOutLowRegisterId && b.netzbetreiberOutHighRegisterId) {
+      const lo = externalRegisterRepository.getById(b.netzbetreiberOutLowRegisterId);
+      const hi = externalRegisterRepository.getById(b.netzbetreiberOutHighRegisterId);
+      if (lo && hi) {
+        const w = Math.max(0, Math.round(netzbetreiberKw * 1000)) >>> 0; // kW -> W
+        const writeFn = (er, word) => er.registerType === 'input'
+          ? externalServerService.writeInputWords(er.address, [word])
+          : externalServerService.writeWords(er.address, [word]);
         writeFn(lo, w & 0xFFFF);
         writeFn(hi, (w >>> 16) & 0xFFFF);
         geschrieben.netzbetreiberW = w;
-      } catch (e) { console.error('[controlService] Netzbetreiber-Out:', e.message); }
+      }
     }
-  }
+  } catch (e) { schreibFehler.push('Netzbetreiber-Out: ' + e.message); }
 
   const aktuierungMoeglich = Boolean(cfg.aktuierungAktiv && logoSource && b.aq3TargetRegisterId);
 
@@ -191,6 +198,7 @@ function computeOnce() {
     aktuierungMoeglich,
     aktuiert: geschrieben.aq3Kw != null,
     geschrieben,
+    schreibFehler,
     inputsFehlen: fehlt,
     pRef100Kw: cfg.pRef100Kw,
   };
