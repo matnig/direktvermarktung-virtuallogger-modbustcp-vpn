@@ -5,6 +5,7 @@ function encodeRegisterValue(value, dataType) {
   }
 
   const is32 = dataType === 'uint32' || dataType === 'int32' || dataType === 'float32';
+  const is64 = dataType === 'float64';
   const buf  = Buffer.alloc(is64 ? 8 : is32 ? 4 : 2);
 
   if (typeof value !== 'number' || !isFinite(value)) {
@@ -18,6 +19,7 @@ function encodeRegisterValue(value, dataType) {
     case 'uint32': buf.writeUInt32BE(Math.max(0, Math.min(4294967295, Math.round(v))), 0); break;
     case 'int32':  buf.writeInt32BE(Math.max(-2147483648, Math.min(2147483647, Math.round(v))), 0); break;
     case 'float32': buf.writeFloatBE(v, 0); break;
+    case 'float64': buf.writeDoubleBE(v, 0); break;
     default:
       console.warn(`[encode] unknown dataType "${dataType}", writing 0`);
       buf.writeUInt16BE(0, 0);
