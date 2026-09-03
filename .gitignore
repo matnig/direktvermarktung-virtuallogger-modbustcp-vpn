@@ -11,3 +11,6 @@ src/persistence/data/*.json
 .DS_Store
 
 .claude/
+
+# Fremde Hersteller-/Netzbetreiber-Dokumente (nicht ins öffentliche Repo)
+*.pdf

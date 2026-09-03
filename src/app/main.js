@@ -15,6 +15,8 @@ const mqttSubscriptionRepository    = require('../repositories/mqttSubscriptionR
 const mqttPublishRuleRepository     = require('../repositories/mqttPublishRuleRepository');
 const mqttService                   = require('../services/mqttService');
 const variableService               = require('../services/variableService');
+const einspeisemanagementService    = require('../services/einspeisemanagementService');
+const controlService                = require('../services/controlService');
 
 initializeCollections([
   { name: 'sources',    fallback: [] },
@@ -33,6 +35,8 @@ initializeCollections([
   { name: mqttPublishRuleRepository.COLLECTION,      fallback: [] },
   { name: mqttService.COLLECTION,
     fallback: { ...mqttService.DEFAULT_CONFIG } },
+  { name: einspeisemanagementService.COLLECTION,
+    fallback: [einspeisemanagementService.createDefaultConfig()] },
 ]);
 
 const app = createApp();
@@ -45,4 +49,5 @@ app.listen(PORT, HOST, async () => {
   bridgeService.startBridge();
   watchdogService.startWatchdog();
   mqttService.connect();
+  controlService.startControl();
 });

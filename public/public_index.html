@@ -852,6 +852,93 @@
       </div>
     </div>
 
+    <!-- ── Einspeisemanagement (Drosselung) ─────────────────────────── -->
+    <div class="panel" style="margin-top:24px;">
+      <div class="rt-header">
+        <h2 data-i18n="em.title">Feed-in management</h2>
+        <span id="em-aktuierung-badge" class="badge stopped">&#9675; OFF</span>
+        <span id="em-updated" class="rt-meta hint"></span>
+      </div>
+
+      <!-- Live status -->
+      <h3 data-i18n="em.status.title" style="margin:8px 0;">Live status</h3>
+      <div id="em-status" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:8px;">
+        <div><div class="hint" data-i18n="em.pLimit">Binding limit</div><div id="em-st-plimit" style="font-size:20px;font-weight:600;">—</div></div>
+        <div><div class="hint" data-i18n="em.direktvermarkter">Direct marketer</div><div id="em-st-dv">—</div></div>
+        <div><div class="hint" data-i18n="em.netzbetreiber">Grid operator</div><div id="em-st-nb">—</div></div>
+        <div><div class="hint" data-i18n="em.nap">Grid feed-in</div><div id="em-st-nap">—</div></div>
+        <div><div class="hint" data-i18n="em.wrSollwert">Inverter setpoint</div><div id="em-st-wr" style="font-weight:600;">—</div></div>
+        <div><div class="hint" data-i18n="em.akku">Battery</div><div id="em-st-akku">—</div></div>
+      </div>
+      <p id="em-st-missing" class="hint err" style="margin:0 0 4px;"></p>
+
+      <div class="grid-3" style="margin-top:12px;">
+        <!-- Config -->
+        <form id="em-form">
+          <h3 data-i18n="em.config.title">Configuration</h3>
+          <label><span data-i18n="em.pRef">100 % reference power (kW)</span><input type="number" step="0.1" name="pRef100Kw" /></label>
+          <label><span data-i18n="em.akkuMaxLade">Battery max charge (kW)</span><input type="number" step="0.1" name="akkuMaxLadeleistungKw" /></label>
+          <label><span data-i18n="em.aqSkala">LOGO AQ scale max (kW)</span><input type="number" step="0.1" name="aqSkalaMaxKw" /></label>
+          <div class="row">
+            <label><span data-i18n="em.wrMin">Setpoint min (kW)</span><input type="number" step="0.1" name="wrSollwertMinKw" /></label>
+            <label><span data-i18n="em.wrMax">Setpoint max (kW)</span><input type="number" step="0.1" name="wrSollwertMaxKw" /></label>
+          </div>
+          <div class="row">
+            <label><span data-i18n="em.totband">Deadband (kW)</span><input type="number" step="0.1" name="totbandKw" /></label>
+            <label><span data-i18n="em.verstaerkung">Gain</span><input type="number" step="0.1" name="reglerVerstaerkung" /></label>
+            <label><span data-i18n="em.maxSchritt">Max step (kW)</span><input type="number" step="0.1" name="maxSchrittKw" /></label>
+          </div>
+          <label><span data-i18n="em.failsafe">Failsafe setpoint (kW)</span><input type="number" step="0.1" name="failsafeSollwertKw" /></label>
+          <label style="display:flex;align-items:center;gap:8px;">
+            <input type="checkbox" name="akkuVorsteuerung" style="width:auto;margin:0;" />
+            <span data-i18n="em.akkuVorsteuerung">Battery feed-forward</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+            <input type="checkbox" name="aktuierungAktiv" id="em-aktuierung-chk" style="width:auto;margin:0;" />
+            <span data-i18n="em.aktuierungAktiv" style="font-weight:600;">Enable actuation</span>
+          </label>
+          <p class="hint" data-i18n="em.aktuierungWarn" style="color:#856404;background:#fff3cd;border-left:3px solid #ffc107;padding:6px 10px;border-radius:4px;">Danger: writes to inverter.</p>
+          <button type="submit" data-i18n="em.save" style="width:auto;padding:8px 20px;">Save</button>
+        </form>
+
+        <!-- Signal assignment (bindings) -->
+        <form id="em-bindings-form">
+          <h3 data-i18n="em.bindings.title">Signal assignment</h3>
+          <label><span data-i18n="em.bind.direktvermarkter">Direct marketer variable</span>
+            <select id="em-bind-dv"></select></label>
+          <label><span data-i18n="em.bind.nap">Grid node registers (multi)</span>
+            <select id="em-bind-nap" multiple size="4"></select></label>
+          <div class="row">
+            <label><span data-i18n="em.bind.i1">Contact I1</span><select id="em-bind-i1"></select></label>
+            <label><span data-i18n="em.bind.i2">Contact I2</span><select id="em-bind-i2"></select></label>
+            <label><span data-i18n="em.bind.i3">Contact I3</span><select id="em-bind-i3"></select></label>
+          </div>
+          <label><span data-i18n="em.bind.akkuSoc">Battery SoC register</span><select id="em-bind-soc"></select></label>
+          <label><span data-i18n="em.bind.akkuLade">Battery power register</span><select id="em-bind-lade"></select></label>
+          <label><span data-i18n="em.bind.akkuMaxLade">Battery max-charge register</span><select id="em-bind-maxlade"></select></label>
+          <button type="submit" data-i18n="em.save" style="width:auto;padding:8px 20px;">Save</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- ── Software update ──────────────────────────────────────────── -->
+    <div class="panel" style="margin-top:24px;">
+      <div class="rt-header">
+        <h2 data-i18n="update.title">Software update</h2>
+        <span id="update-badge" class="badge stopped" style="display:none;"></span>
+      </div>
+      <p class="hint" style="margin:4px 0;">
+        <span data-i18n="update.current">Current version</span>:
+        <span id="update-version" style="font-family:monospace;">—</span>
+      </p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <button id="update-check-btn" style="width:auto;padding:8px 16px;" data-i18n="update.check">Check for updates</button>
+        <button id="update-apply-btn" style="width:auto;padding:8px 16px;" data-i18n="update.apply">Update &amp; restart</button>
+        <span id="update-status" class="hint"></span>
+      </div>
+      <pre id="update-log" style="margin-top:10px;display:none;max-height:220px;overflow:auto;"></pre>
+    </div>
+
     <!-- ── Debug output ───────────────────────────────────────────── -->
     <div class="panel" style="margin-top:24px;">
       <h2 data-i18n="debug.title">Debug output</h2>
@@ -894,6 +981,7 @@
         refreshBridgeConfig().catch(() => {});
         refreshVariables().catch(() => {});
         refreshMqtt().catch(() => {});
+        refreshEinspeisemanagement().catch(() => {});
       }
 
       // ── DOM refs ──────────────────────────────────────────────────
@@ -2505,6 +2593,219 @@
         } catch (err) { setDebug(err); }
       }
 
+      // ── Einspeisemanagement ───────────────────────────────────────
+      const EM_NUM_FIELDS = [
+        'pRef100Kw', 'akkuMaxLadeleistungKw', 'aqSkalaMaxKw',
+        'wrSollwertMinKw', 'wrSollwertMaxKw', 'totbandKw',
+        'reglerVerstaerkung', 'maxSchrittKw', 'failsafeSollwertKw',
+      ];
+
+      function emFmtKw(v) {
+        return (v == null || !Number.isFinite(v)) ? '—' : Number(v).toFixed(1) + ' kW';
+      }
+
+      function emFillSelect(sel, items, selectedId, withNone) {
+        if (!sel) return;
+        const opts = [];
+        if (withNone) opts.push(`<option value="">${esc(t('em.bind.none'))}</option>`);
+        for (const it of items) {
+          const sel1 = String(it.id) === String(selectedId) ? ' selected' : '';
+          opts.push(`<option value="${esc(it.id)}"${sel1}>${esc(it.label)}</option>`);
+        }
+        sel.innerHTML = opts.join('');
+      }
+
+      function emFillMulti(sel, items, selectedIds) {
+        if (!sel) return;
+        const set = new Set((selectedIds || []).map(String));
+        sel.innerHTML = items.map(it =>
+          `<option value="${esc(it.id)}"${set.has(String(it.id)) ? ' selected' : ''}>${esc(it.label)}</option>`
+        ).join('');
+      }
+
+      function renderEmStatus(st) {
+        const badge = document.getElementById('em-aktuierung-badge');
+        const armed = !!st.aktuierungAktiv;
+        badge.textContent = armed ? t('em.aktuierung.on') : t('em.aktuierung.off');
+        badge.className = 'badge ' + (armed ? 'running' : 'stopped');
+
+        document.getElementById('em-updated').textContent =
+          st.zeit ? (t('runtime.updated') + ' ' + fmtTime(st.zeit)) : '';
+        document.getElementById('em-st-plimit').textContent = emFmtKw(st.pLimitKw);
+        document.getElementById('em-st-dv').textContent = emFmtKw(st.direktvermarkterKw);
+        document.getElementById('em-st-nb').textContent =
+          st.netzbetreiberKw == null ? '—'
+            : `${emFmtKw(st.netzbetreiberKw)} (${st.netzbetreiberStufeProzent}%)`;
+        document.getElementById('em-st-nap').textContent = emFmtKw(st.napEinspeisungKw);
+        const wr = document.getElementById('em-st-wr');
+        wr.textContent = emFmtKw(st.wrSollwertKw) + (st.regler && st.regler.grund ? ` · ${st.regler.grund}` : '');
+        const a = st.akku || {};
+        document.getElementById('em-st-akku').textContent =
+          (a.socProzent == null ? '—' : `SoC ${a.socProzent}%`) +
+          (a.ladeleistungKw == null ? '' : ` · ${emFmtKw(a.ladeleistungKw)}`);
+        const miss = document.getElementById('em-st-missing');
+        miss.textContent = (st.inputsFehlen && st.inputsFehlen.length)
+          ? `${t('em.inputsMissing')}: ${st.inputsFehlen.join(', ')}` : '';
+      }
+
+      let _emRegisters = [];
+      let _emVariables = [];
+
+      async function refreshEinspeisemanagement() {
+        try {
+          const [cfg, status, registers, variables] = await Promise.all([
+            fetchJson('/api/einspeisemanagement'),
+            fetchJson('/api/einspeisemanagement/status').catch(() => ({})),
+            fetchJson('/api/registers').catch(() => []),
+            fetchJson('/api/variables').catch(() => []),
+          ]);
+          _emRegisters = registers || [];
+          _emVariables = variables || [];
+
+          // Config-Formular füllen
+          const form = document.getElementById('em-form');
+          for (const f of EM_NUM_FIELDS) {
+            if (form.elements[f]) form.elements[f].value = cfg[f] ?? '';
+          }
+          form.elements['akkuVorsteuerung'].checked = !!cfg.akkuVorsteuerung;
+          form.elements['aktuierungAktiv'].checked = !!cfg.aktuierungAktiv;
+
+          // Bindings-Selects füllen
+          const regItems = _emRegisters.map(r => ({
+            id: r.id,
+            label: `${r.name} [${r.registerType} ${r.address}]`,
+          }));
+          const varItems = _emVariables.map(v => ({ id: v.id, label: v.label || v.name }));
+          const b = cfg.bindings || {};
+          emFillSelect(document.getElementById('em-bind-dv'), varItems, b.direktvermarkterVariableId, true);
+          emFillMulti(document.getElementById('em-bind-nap'), regItems, b.napRegisterIds);
+          emFillSelect(document.getElementById('em-bind-i1'), regItems, b.kontaktI1RegisterId, true);
+          emFillSelect(document.getElementById('em-bind-i2'), regItems, b.kontaktI2RegisterId, true);
+          emFillSelect(document.getElementById('em-bind-i3'), regItems, b.kontaktI3RegisterId, true);
+          emFillSelect(document.getElementById('em-bind-soc'), regItems, b.akkuSocRegisterId, true);
+          emFillSelect(document.getElementById('em-bind-lade'), regItems, b.akkuLadeleistungRegisterId, true);
+          emFillSelect(document.getElementById('em-bind-maxlade'), regItems, b.akkuMaxLadeRegisterId, true);
+
+          renderEmStatus(status || {});
+        } catch (err) {
+          setDebug(err);
+        }
+      }
+
+      document.getElementById('em-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const payload = {};
+        for (const f of EM_NUM_FIELDS) {
+          const raw = form.elements[f].value;
+          if (raw !== '') payload[f] = parseFloat(raw);
+        }
+        payload.akkuVorsteuerung = form.elements['akkuVorsteuerung'].checked;
+        payload.aktuierungAktiv = form.elements['aktuierungAktiv'].checked;
+        try {
+          await fetchJson('/api/einspeisemanagement', { method: 'PUT', body: JSON.stringify(payload) });
+          showAlert(t('em.saved'), 'success');
+          await refreshEinspeisemanagement();
+        } catch (err) { showAlert(errorMessage(err), 'error'); setDebug(err); }
+      });
+
+      document.getElementById('em-bindings-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const val = (id) => { const v = document.getElementById(id).value; return v || null; };
+        const napSel = document.getElementById('em-bind-nap');
+        const napIds = Array.from(napSel.selectedOptions).map(o => o.value);
+        const bindings = {
+          direktvermarkterVariableId: val('em-bind-dv'),
+          napRegisterIds: napIds,
+          kontaktI1RegisterId: val('em-bind-i1'),
+          kontaktI2RegisterId: val('em-bind-i2'),
+          kontaktI3RegisterId: val('em-bind-i3'),
+          akkuSocRegisterId: val('em-bind-soc'),
+          akkuLadeleistungRegisterId: val('em-bind-lade'),
+          akkuMaxLadeRegisterId: val('em-bind-maxlade'),
+        };
+        try {
+          await fetchJson('/api/einspeisemanagement', { method: 'PUT', body: JSON.stringify({ bindings }) });
+          showAlert(t('em.saved'), 'success');
+          await refreshEinspeisemanagement();
+        } catch (err) { showAlert(errorMessage(err), 'error'); setDebug(err); }
+      });
+
+      // ── Software update ───────────────────────────────────────────
+      function renderUpdateVersion(data) {
+        const v = (data && data.version) || {};
+        const el = document.getElementById('update-version');
+        el.textContent = v.ok
+          ? `${v.branch}@${v.commit} · ${v.subject}${v.date ? ' · ' + v.date.slice(0, 10) : ''}`
+          : (v.error || '—');
+        const badge = document.getElementById('update-badge');
+        if (data && data.check) {
+          const c = data.check;
+          badge.style.display = '';
+          if (c.updateAvailable) {
+            badge.textContent = `${t('update.available')} (${c.behind})`;
+            badge.className = 'badge running';
+          } else {
+            badge.textContent = t('update.upToDate');
+            badge.className = 'badge stopped';
+          }
+        }
+      }
+
+      async function refreshUpdateVersion(check) {
+        try {
+          const data = await fetchJson('/api/update/status' + (check ? '?check=1' : ''));
+          renderUpdateVersion(data);
+        } catch (err) { setDebug(err); }
+      }
+
+      function fmtUpdateSteps(steps) {
+        return (steps || []).map(s =>
+          `$ ${s.cmd}\n${s.stdout || ''}${s.stderr ? '\n' + s.stderr : ''}${s.ok ? '' : `\n[exit ${s.code}]`}`
+        ).join('\n\n');
+      }
+
+      async function pollHealthThenReload(deadlineMs) {
+        const until = Date.now() + deadlineMs;
+        const tick = async () => {
+          try {
+            const r = await fetch('/api/health', { cache: 'no-store' });
+            if (r.ok) { location.reload(); return; }
+          } catch (_) { /* noch nicht oben */ }
+          if (Date.now() < until) setTimeout(tick, 2000);
+          else document.getElementById('update-status').textContent = t('update.failed');
+        };
+        setTimeout(tick, 3000);
+      }
+
+      document.getElementById('update-check-btn').addEventListener('click', () => {
+        document.getElementById('update-status').textContent = '…';
+        refreshUpdateVersion(true).finally(() => {
+          document.getElementById('update-status').textContent = '';
+        });
+      });
+
+      document.getElementById('update-apply-btn').addEventListener('click', async () => {
+        if (!confirm(t('update.confirm'))) return;
+        const statusEl = document.getElementById('update-status');
+        const logEl = document.getElementById('update-log');
+        statusEl.textContent = t('update.running');
+        logEl.style.display = 'block';
+        logEl.textContent = '';
+        try {
+          const result = await fetchJson('/api/update/apply', { method: 'POST' });
+          logEl.textContent = fmtUpdateSteps(result.steps);
+          if (!result.ok) { statusEl.textContent = t('update.failed'); showAlert(t('update.failed'), 'error'); return; }
+          statusEl.textContent = t('update.restarting');
+          await fetchJson('/api/update/restart', { method: 'POST' }).catch(() => {});
+          pollHealthThenReload(60000);
+        } catch (err) {
+          logEl.textContent = fmtUpdateSteps(err && err.steps) || errorMessage(err);
+          statusEl.textContent = t('update.failed');
+          showAlert(errorMessage(err), 'error');
+        }
+      });
+
       // ── Init ──────────────────────────────────────────────────────
       applyTranslations();
       toggleMappingFields();
@@ -2608,6 +2909,12 @@
       refreshVariables().catch(setDebug);
       refreshMqtt().catch(setDebug);
       refreshNetwork().catch(setDebug);
+      refreshEinspeisemanagement().catch(setDebug);
+      refreshUpdateVersion(false).catch(setDebug);
+      setInterval(() => {
+        fetchJson('/api/einspeisemanagement/status')
+          .then(renderEmStatus).catch(() => {});
+      }, 2000);
     </script>
   </body>
 </html>

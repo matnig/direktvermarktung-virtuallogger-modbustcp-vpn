@@ -14,6 +14,8 @@ const virtualVariableRoutes  = require('./routes/virtualVariableRoutes');
 const mqttRoutes             = require('./routes/mqttRoutes');
 const mqttPublishRuleRoutes  = require('./routes/mqttPublishRuleRoutes');
 const networkRoutes          = require('./routes/networkRoutes');
+const einspeisemanagementRoutes = require('./routes/einspeisemanagementRoutes');
+const updateRoutes           = require('./routes/updateRoutes');
 const { DATA_TYPES, REGISTER_TYPES } = require('../validation/registerValidation');
 
 const router = express.Router();
@@ -44,5 +46,7 @@ router.use('/variables',          virtualVariableRoutes);
 router.use('/mqtt',               mqttRoutes);
 router.use('/mqtt-publish-rules', mqttPublishRuleRoutes);
 router.use('/network',           networkRoutes);
+router.use('/einspeisemanagement', einspeisemanagementRoutes);
+router.use('/update',            updateRoutes);
 
 module.exports = router;
