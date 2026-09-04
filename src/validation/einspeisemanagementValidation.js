@@ -75,7 +75,8 @@ function validateEinspeisemanagement(payload = {}) {
         'kontaktI3RegisterId', 'akkuSocRegisterId', 'akkuLadeleistungRegisterId',
         'akkuMaxLadeRegisterId', 'logoSourceId', 'aq3TargetRegisterId',
         'pIstSourceRegisterId', 'strahlungOstVariableId', 'strahlungWestVariableId',
-        'pKannTargetRegisterId', 'netzbetreiberOutLowRegisterId', 'netzbetreiberOutHighRegisterId',
+        'pKannTargetRegisterId', 'pIstTargetRegisterId',
+        'netzbetreiberOutLowRegisterId', 'netzbetreiberOutHighRegisterId',
       ];
       for (const k of idKeys) {
         if (b[k] !== undefined && b[k] !== null && typeof b[k] !== 'string') {

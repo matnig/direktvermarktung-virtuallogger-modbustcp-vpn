@@ -62,6 +62,7 @@ class EinspeisemanagementConfig {
       strahlungOstVariableId: null,     // Variable Strahlung Ost (W/m²)
       strahlungWestVariableId: null,    // Variable Strahlung West (W/m²)
       pKannTargetRegisterId: null,      // LOGO Holding 11 (VW22) — P_kann kW
+      pIstTargetRegisterId: null,       // LOGO AQ1 (NAI-VW) — P_ist an WWN = Netzeinspeisung (nur Einspeisung, max(0,·))
       // --- Netzbetreiber-Stufe an Direktvermarkter ---
       netzbetreiberOutLowRegisterId: null,  // externes Input-Register "Sollwert Netzbetreiber" Low (W)
       netzbetreiberOutHighRegisterId: null, // externes Input-Register "Sollwert Netzbetreiber" High (W)
@@ -104,6 +105,7 @@ class EinspeisemanagementConfig {
       strahlungOstVariableId: null,
       strahlungWestVariableId: null,
       pKannTargetRegisterId: null,
+      pIstTargetRegisterId: null,
       netzbetreiberOutLowRegisterId: null,
       netzbetreiberOutHighRegisterId: null,
       ...(bindings || {}),

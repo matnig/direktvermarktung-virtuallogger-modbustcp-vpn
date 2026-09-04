@@ -126,7 +126,9 @@ function computeOnce() {
   const pKann = logic.pKannKw({ drosselAktiv, pIstKw, dargebotKw: dargebot });
 
   // --- Schreiben (jeder Block einzeln abgesichert: ein Schreibfehler darf den Regler NIE einfrieren) ---
-  const geschrieben = { aq3Kw: null, pKannKw: null, netzbetreiberW: null };
+  const geschrieben = { aq3Kw: null, pKannKw: null, pIstWwnKw: null, netzbetreiberW: null };
+  // P_ist an WWN = Netzeinspeisung, nur Einspeisung (Bezug/negativ nicht sichtbar -> 0)
+  const pIstWwnKw = napEinspeisungKw == null ? null : Math.max(0, napEinspeisungKw);
   const schreibFehler = [];
   let logoSource = null;
   try { logoSource = b.logoSourceId ? sourceRepository.getById(b.logoSourceId) : null; }
@@ -162,6 +164,19 @@ function computeOnce() {
     }
   } catch (e) { schreibFehler.push('P_kann: ' + e.message); }
 
+  // (2b) P_ist -> LOGO AQ1 = Netzeinspeisung (nur Einspeisung); nur bei aktuierungAktiv
+  try {
+    if (cfg.aktuierungAktiv && logoSource && b.pIstTargetRegisterId && pIstWwnKw != null) {
+      const reg = registerRepository.getById(b.pIstTargetRegisterId);
+      if (reg) {
+        const words = encodeRegisterValue(Math.round(pIstWwnKw), reg.dataType);
+        writeClient.writeRegisterWords(logoSource, reg.address, words)
+          .catch((e) => console.error('[controlService] P_ist-Write:', e.message));
+        geschrieben.pIstWwnKw = Math.round(pIstWwnKw);
+      }
+    }
+  } catch (e) { schreibFehler.push('P_ist: ' + e.message); }
+
   // (3) Netzbetreiber-Stufe -> Direktvermarkter (externes Input-Register, W, 32-bit split) — immer
   try {
     if (netzbetreiberKw != null && b.netzbetreiberOutLowRegisterId && b.netzbetreiberOutHighRegisterId) {
@@ -191,6 +206,7 @@ function computeOnce() {
     napEinspeisungKw,
     akku,
     pIstKw,
+    pIstWwnKw,
     dargebotKw: dargebot,
     pKannKw: pKann,
     drosselAktiv,
