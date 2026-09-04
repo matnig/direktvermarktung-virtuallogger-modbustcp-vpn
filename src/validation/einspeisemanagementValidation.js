@@ -21,6 +21,7 @@ function validateEinspeisemanagement(payload = {}) {
   numRange('akkuMaxLadeleistungKw', 0, 10000);
   numRange('pInstalliertKw', 0, 100000);
   numRange('strahlungReferenzWm2', 1, 5000);
+  numRange('dargebotMaxKw', 0, 100000);
   numRange('pKannFaktor', 0.001, 1000);
   numRange('totbandKw', 0, 1000);
   numRange('reglerAbtastMs', 200, 60000);

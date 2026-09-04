@@ -140,6 +140,12 @@ test('Dargebot: keine Strahlung => null', () => {
   assert.strictEqual(dargebotKw(null, undefined, c), null);
 });
 
+test('Dargebot: Kappung bei dargebotMaxKw', () => {
+  const c = cfg({ pInstalliertKw: 160, strahlungReferenzWm2: 1000, dargebotMaxKw: 105 });
+  assert.strictEqual(dargebotKw(1000, 1000, c), 105); // 160 -> gekappt auf 105
+  assert.strictEqual(dargebotKw(500, 500, c), 80);    // 80 < 105 -> unveraendert
+});
+
 // --- P_kann-Auswahl ---
 
 test('P_kann: ohne Drosselung = Ist-Leistung', () => {

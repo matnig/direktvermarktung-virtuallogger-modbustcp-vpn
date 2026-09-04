@@ -92,7 +92,10 @@ function dargebotKw(strahlungOstWm2, strahlungWestWm2, config) {
   const vals = [strahlungOstWm2, strahlungWestWm2].filter(isNum);
   if (!vals.length || ref <= 0) return null;
   const mittel = vals.reduce((a, b) => a + b, 0) / vals.length;
-  return Math.max(0, (mittel / ref) * pInst);
+  let dg = Math.max(0, (mittel / ref) * pInst);
+  const cap = Number(config.dargebotMaxKw) || 0;
+  if (cap > 0) dg = Math.min(dg, cap); // reale Max-AC-Leistung (Kappung)
+  return dg;
 }
 
 // --- 6) P_kann-Auswahl: ohne Drosselung = Ist-Leistung, mit Drosselung = Dargebot ---
