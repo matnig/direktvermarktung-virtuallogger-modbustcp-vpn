@@ -27,6 +27,7 @@ class EinspeisemanagementConfig {
     // --- Dargebot / P_kann (aus Strahlung) ---
     pInstalliertKw = 160,                // installierte PV-Leistung (Module), für Dargebot-Modell
     strahlungReferenzWm2 = 1000,         // Referenzstrahlung für Vollleistung (W/m²)
+    pKannFaktor = 1,                     // P_kann-Schreibfaktor (10 = 0,1-kW-Auflösung; LOGO-Gain dann /10)
 
     // --- Regler (Wechselrichter-Sollwert via LOGO AQ3, Leistungsgrenze in kW) ---
     aktuierungAktiv = false,             // HART: false => kein Schreiben an den WR
@@ -75,6 +76,7 @@ class EinspeisemanagementConfig {
     this.akkuMaxLadeleistungKw = akkuMaxLadeleistungKw;
     this.pInstalliertKw = pInstalliertKw;
     this.strahlungReferenzWm2 = strahlungReferenzWm2;
+    this.pKannFaktor = pKannFaktor;
     this.aktuierungAktiv = aktuierungAktiv;
     this.totbandKw = totbandKw;
     this.reglerAbtastMs = reglerAbtastMs;

@@ -152,10 +152,12 @@ function computeOnce() {
     if (cfg.aktuierungAktiv && logoSource && b.pKannTargetRegisterId && pKann != null) {
       const reg = registerRepository.getById(b.pKannTargetRegisterId);
       if (reg) {
-        const words = encodeRegisterValue(Math.round(pKann), reg.dataType);
+        const faktor = Number(cfg.pKannFaktor) || 1;
+        const written = Math.round(pKann * faktor); // faktor 10 => 0,1-kW-Auflösung
+        const words = encodeRegisterValue(written, reg.dataType);
         writeClient.writeRegisterWords(logoSource, reg.address, words)
           .catch((e) => console.error('[controlService] P_kann-Write:', e.message));
-        geschrieben.pKannKw = Math.round(pKann);
+        geschrieben.pKannKw = written;
       }
     }
   } catch (e) { schreibFehler.push('P_kann: ' + e.message); }
