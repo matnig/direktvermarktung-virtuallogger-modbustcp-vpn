@@ -867,6 +867,9 @@
         <div><div class="hint" data-i18n="em.direktvermarkter">Direct marketer</div><div id="em-st-dv">—</div></div>
         <div><div class="hint" data-i18n="em.netzbetreiber">Grid operator</div><div id="em-st-nb">—</div></div>
         <div><div class="hint" data-i18n="em.nap">Grid feed-in</div><div id="em-st-nap">—</div></div>
+        <div><div class="hint" data-i18n="em.pIstWwn">P_ist → WWN</div><div id="em-st-pist-wwn" style="font-weight:600;">—</div></div>
+        <div><div class="hint" data-i18n="em.pKannWwn">P_kann → WWN</div><div id="em-st-pkann-wwn">—</div></div>
+        <div><div class="hint" data-i18n="em.produktion">PV production</div><div id="em-st-prod">—</div></div>
         <div><div class="hint" data-i18n="em.wrSollwert">Inverter setpoint</div><div id="em-st-wr" style="font-weight:600;">—</div></div>
         <div><div class="hint" data-i18n="em.akku">Battery</div><div id="em-st-akku">—</div></div>
       </div>
@@ -2670,7 +2673,12 @@
         document.getElementById('em-st-nb').textContent =
           st.netzbetreiberKw == null ? '—'
             : `${emFmtKw(st.netzbetreiberKw)} (${st.netzbetreiberStufeProzent}%)`;
-        document.getElementById('em-st-nap').textContent = emFmtKw(st.napEinspeisungKw);
+        const nap = st.napEinspeisungKw;
+        document.getElementById('em-st-nap').textContent = nap == null ? '—'
+          : emFmtKw(nap) + (nap > 0.05 ? ` (${t('em.einspeisung')})` : nap < -0.05 ? ` (${t('em.bezug')})` : '');
+        document.getElementById('em-st-pist-wwn').textContent = emFmtKw(st.pIstWwnKw);
+        document.getElementById('em-st-pkann-wwn').textContent = emFmtKw(st.pKannKw);
+        document.getElementById('em-st-prod').textContent = emFmtKw(st.pIstKw);
         const wr = document.getElementById('em-st-wr');
         wr.textContent = emFmtKw(st.wrSollwertKw) + (st.regler && st.regler.grund ? ` · ${st.regler.grund}` : '');
         const a = st.akku || {};
