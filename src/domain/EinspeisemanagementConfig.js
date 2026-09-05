@@ -36,7 +36,13 @@ class EinspeisemanagementConfig {
     reglerAbtastMs = 1000,               // Regeltakt
     reglerVerstaerkung = 0.5,            // P-Anteil: kW WR-Korrektur je kW Regelabweichung
     maxSchrittKw = 5,                    // Ratenbegrenzung: max. Änderung WR-Sollwert je Schritt
-    akkuVorsteuerung = true,             // Sättigung des Akkus vorausschauend berücksichtigen
+    akkuVorsteuerung = true,             // Akku-Bilanz (Freigabe + Sättigungs-Vorsteuerung) berücksichtigen
+    // Akku als Puffer: unterhalb dieser SoC-Schwelle gilt die freie Ladeleistung des Akkus als
+    // echte Aufnahmefähigkeit -> Überschuss in dieser Höhe wird NICHT weggedrosselt.
+    akkuFreigabeSocProzent = 85,         // ab hier zählt der Akku nicht mehr als Puffer
+    akkuFreigabeUebergangProzent = 5,    // linearer Übergang darunter (80..85 %), kein Sprung
+    akkuReserveFaktor = 1,               // Anteil der Ladereserve, der angerechnet wird (Sicherheitsmarge)
+    ueberschussToleranzMs = 5000,        // kurzer Überschuss (bis Akku-Ladegrenze) wird so lange ausgesessen
     wrSollwertMaxKw = 125,               // Obergrenze WR-Sollwert
     wrSollwertMinKw = 0,                 // Untergrenze WR-Sollwert
 
@@ -86,6 +92,10 @@ class EinspeisemanagementConfig {
     this.reglerVerstaerkung = reglerVerstaerkung;
     this.maxSchrittKw = maxSchrittKw;
     this.akkuVorsteuerung = akkuVorsteuerung;
+    this.akkuFreigabeSocProzent = akkuFreigabeSocProzent;
+    this.akkuFreigabeUebergangProzent = akkuFreigabeUebergangProzent;
+    this.akkuReserveFaktor = akkuReserveFaktor;
+    this.ueberschussToleranzMs = ueberschussToleranzMs;
     this.wrSollwertMaxKw = wrSollwertMaxKw;
     this.wrSollwertMinKw = wrSollwertMinKw;
     this.failsafeSollwertKw = failsafeSollwertKw;

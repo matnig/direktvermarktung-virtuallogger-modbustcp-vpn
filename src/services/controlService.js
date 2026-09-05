@@ -25,6 +25,7 @@ const writeClient = new ModbusClient();
 
 let _handle = null;
 let _wrSollwertKw = null;   // Integrator-Zustand des einseitigen Begrenzers
+let _ueberschussSeitMs = null; // seit wann steht ein Netzüberschuss an (für die Akku-Kurzzeit-Toleranz)
 let _state = { zeit: null, aktiv: false };
 
 function num(v) {
@@ -108,10 +109,18 @@ function computeOnce() {
   let regler = null;
   if (napEinspeisungKw != null) {
     regler = logic.reglerSchritt(
-      { napEinspeisungKw, pLimitKw, wrSollwertAktuellKw: _wrSollwertKw, akku },
+      {
+        napEinspeisungKw,
+        pLimitKw,
+        wrSollwertAktuellKw: _wrSollwertKw,
+        akku,
+        jetztMs: Date.now(),
+        ueberschussSeitMs: _ueberschussSeitMs,
+      },
       cfg,
     );
     if (regler.wrSollwertKw != null) _wrSollwertKw = regler.wrSollwertKw;
+    _ueberschussSeitMs = regler.ueberschussSeitMs;
   }
 
   // --- P_ist (Sentron PV, W -> kW) ---
@@ -210,6 +219,8 @@ function computeOnce() {
     dargebotKw: dargebot,
     pKannKw: pKann,
     drosselAktiv,
+    akkuReserveKw: logic.akkuReserveKw(akku, cfg),
+    akkuFreigabeFaktor: logic.akkuFreigabeFaktor(akku, cfg),
     wrSollwertKw: _wrSollwertKw,
     regler,
     aktuierungAktiv: Boolean(cfg.aktuierungAktiv),
@@ -228,6 +239,7 @@ function startControl() {
   const cfg = einspeisemanagementService.getConfig();
   const ms = Math.max(200, Number(cfg.reglerAbtastMs) || 1000);
   _wrSollwertKw = Number(cfg.wrSollwertMaxKw); // sicherer Start: volle Leistung, keine Drosselung
+  _ueberschussSeitMs = null;
   _handle = setInterval(() => {
     try { computeOnce(); } catch (e) { console.error('[controlService]', e.message); }
   }, ms);

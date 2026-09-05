@@ -5,6 +5,8 @@ const {
   netzbetreiberStufe,
   pLimitKw,
   effektiveEinspeisungKw,
+  akkuReserveKw,
+  akkuFreigabeFaktor,
   reglerSchritt,
   dargebotKw,
   pKannKw,
@@ -158,4 +160,117 @@ test('P_kann: mit Drosselung = Dargebot', () => {
 
 test('P_kann: ohne Ist fällt auf Dargebot zurück', () => {
   assert.strictEqual(pKannKw({ drosselAktiv: false, pIstKw: null, dargebotKw: 140 }), 140);
+});
+
+// --- Akku-Freigabe: leerer Akku darf den Überschuss aufnehmen, PV nicht drosseln ---
+
+test('Akku-Freigabe: SoC weit unter Schwelle => volle Ladereserve wird angerechnet', () => {
+  const c = cfg();
+  const akku = { verfuegbar: true, socProzent: 11, ladeleistungKw: 7.5, maxLadeleistungKw: 50 };
+  assert.strictEqual(akkuFreigabeFaktor(akku, c), 1);
+  assert.strictEqual(akkuReserveKw(akku, c), 42.5);
+  // Reales Feldbild vom 05.09.: Netzknoten ~0, Akku lädt 7,5 kW bei SoC 11 %
+  const eff = effektiveEinspeisungKw(0, akku, c);
+  assert.strictEqual(eff, -42.5); // vorher: +1,1 -> Dauerdrosselung
+});
+
+test('Akku-Freigabe: Regler fährt die PV hoch statt zu drosseln', () => {
+  const c = cfg();
+  const akku = { verfuegbar: true, socProzent: 11, ladeleistungKw: 7.5, maxLadeleistungKw: 50 };
+  const r = reglerSchritt(
+    { napEinspeisungKw: 0, pLimitKw: 0, wrSollwertAktuellKw: 36, akku, jetztMs: 1000 },
+    c,
+  );
+  assert.strictEqual(r.grund, 'lockern');
+  assert.strictEqual(r.wrSollwertKw, 41); // +maxSchrittKw
+});
+
+test('Akku voll geladen (SoC >= Schwelle): altes konservatives Verhalten', () => {
+  const c = cfg();
+  const akku = { verfuegbar: true, socProzent: 90, ladeleistungKw: 10, maxLadeleistungKw: 50 };
+  assert.strictEqual(akkuFreigabeFaktor(akku, c), 0);
+  assert.ok(Math.abs(effektiveEinspeisungKw(0, akku, c) - 2) < 1e-9); // Erschöpfung 0,2 x 10
+});
+
+test('Akku-Freigabe blendet über das Übergangsband stufenlos aus', () => {
+  const c = cfg(); // Schwelle 85, Band 5 -> bei 82,5 % genau die Hälfte
+  const akku = { verfuegbar: true, socProzent: 82.5, ladeleistungKw: 10, maxLadeleistungKw: 50 };
+  assert.strictEqual(akkuFreigabeFaktor(akku, c), 0.5);
+  assert.strictEqual(effektiveEinspeisungKw(0, akku, c), -19); // -0,5*40 + 0,5*2
+});
+
+test('SoC unbekannt => keine Freigabe (konservativ)', () => {
+  const c = cfg();
+  const akku = { verfuegbar: true, socProzent: null, ladeleistungKw: 10, maxLadeleistungKw: 50 };
+  assert.strictEqual(akkuFreigabeFaktor(akku, c), 0);
+  assert.ok(Math.abs(effektiveEinspeisungKw(0, akku, c) - 2) < 1e-9);
+});
+
+test('Akku am Anschlag trotz niedrigem SoC => keine Reserve, es wird geregelt', () => {
+  const c = cfg();
+  const akku = { verfuegbar: true, socProzent: 11, ladeleistungKw: 50, maxLadeleistungKw: 50 };
+  assert.strictEqual(akkuReserveKw(akku, c), 0);
+  assert.strictEqual(effektiveEinspeisungKw(8, akku, c), 8); // echter Überschuss zählt voll
+});
+
+// --- Kurzzeit-Toleranz ---
+
+test('kurzer Überschuss bis Akku-Ladegrenze wird ausgesessen', () => {
+  const c = cfg();
+  // Akku zieht schon 40 kW (Restreserve 10 kW), fährt aber noch weiter hoch Richtung 50 kW
+  const akku = { verfuegbar: true, socProzent: 11, ladeleistungKw: 40, maxLadeleistungKw: 50 };
+  // Wolkenlücke: 30 kW Überschuss — mehr als die Restreserve, aber unter der 50-kW-Ladegrenze
+  const r1 = reglerSchritt(
+    { napEinspeisungKw: 30, pLimitKw: 0, wrSollwertAktuellKw: 100, akku, jetztMs: 1000, ueberschussSeitMs: null },
+    c,
+  );
+  assert.strictEqual(r1.grund, 'Akku-Toleranz');
+  assert.strictEqual(r1.wrSollwertKw, 100);        // unverändert
+  assert.strictEqual(r1.ueberschussSeitMs, 1000);  // Zeitstempel gesetzt
+
+  // 3 s später immer noch toleriert
+  const r2 = reglerSchritt(
+    { napEinspeisungKw: 30, pLimitKw: 0, wrSollwertAktuellKw: 100, akku, jetztMs: 4000, ueberschussSeitMs: r1.ueberschussSeitMs },
+    c,
+  );
+  assert.strictEqual(r2.grund, 'Akku-Toleranz');
+
+  // nach 5 s wird gedrosselt
+  const r3 = reglerSchritt(
+    { napEinspeisungKw: 30, pLimitKw: 0, wrSollwertAktuellKw: 100, akku, jetztMs: 6500, ueberschussSeitMs: r1.ueberschussSeitMs },
+    c,
+  );
+  assert.strictEqual(r3.grund, 'drosseln');
+  assert.strictEqual(r3.wrSollwertKw, 95); // Ratenbegrenzung maxSchrittKw
+});
+
+test('Überschuss größer als die Akku-Ladegrenze wird sofort gedrosselt', () => {
+  const c = cfg();
+  const akku = { verfuegbar: true, socProzent: 11, ladeleistungKw: 40, maxLadeleistungKw: 50 };
+  const r = reglerSchritt(
+    { napEinspeisungKw: 70, pLimitKw: 0, wrSollwertAktuellKw: 100, akku, jetztMs: 1000, ueberschussSeitMs: null },
+    c,
+  );
+  assert.strictEqual(r.grund, 'drosseln');
+  assert.strictEqual(r.wrSollwertKw, 95);
+});
+
+test('Überschuss-Zeitstempel wird zurückgesetzt, sobald der Überschuss weg ist', () => {
+  const c = cfg();
+  const akku = { verfuegbar: true, socProzent: 11, ladeleistungKw: 5, maxLadeleistungKw: 50 };
+  const r = reglerSchritt(
+    { napEinspeisungKw: 0, pLimitKw: 0, wrSollwertAktuellKw: 100, akku, jetztMs: 9000, ueberschussSeitMs: 1000 },
+    c,
+  );
+  assert.strictEqual(r.ueberschussSeitMs, null);
+});
+
+test('Toleranz greift nicht bei vollem Akku (SoC über Schwelle)', () => {
+  const c = cfg();
+  const akku = { verfuegbar: true, socProzent: 92, ladeleistungKw: 40, maxLadeleistungKw: 50 };
+  const r = reglerSchritt(
+    { napEinspeisungKw: 20, pLimitKw: 0, wrSollwertAktuellKw: 100, akku, jetztMs: 1000, ueberschussSeitMs: null },
+    c,
+  );
+  assert.strictEqual(r.grund, 'drosseln');
 });

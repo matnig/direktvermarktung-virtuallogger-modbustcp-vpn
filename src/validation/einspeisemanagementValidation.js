@@ -31,6 +31,10 @@ function validateEinspeisemanagement(payload = {}) {
   numRange('wrSollwertMinKw', 0, 10000);
   numRange('failsafeSollwertKw', 0, 10000);
   numRange('logoTimeoutMs', 500, 600000);
+  numRange('akkuFreigabeSocProzent', 0, 100);
+  numRange('akkuFreigabeUebergangProzent', 0, 100);
+  numRange('akkuReserveFaktor', 0, 1);
+  numRange('ueberschussToleranzMs', 0, 60000);
 
   if (p.aktuierungAktiv !== undefined && typeof p.aktuierungAktiv !== 'boolean') {
     errors.push('aktuierungAktiv must be a boolean');

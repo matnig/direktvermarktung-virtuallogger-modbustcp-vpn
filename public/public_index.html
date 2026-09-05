@@ -900,6 +900,15 @@
             <input type="checkbox" name="akkuVorsteuerung" style="width:auto;margin:0;" />
             <span data-i18n="em.akkuVorsteuerung">Battery feed-forward</span>
           </label>
+          <div class="row">
+            <label><span data-i18n="em.akkuFreigabeSoc">Battery release below SoC (%)</span><input type="number" step="1" name="akkuFreigabeSocProzent" /></label>
+            <label><span data-i18n="em.akkuFreigabeUebergang">Transition band (%)</span><input type="number" step="0.5" name="akkuFreigabeUebergangProzent" /></label>
+          </div>
+          <div class="row">
+            <label><span data-i18n="em.akkuReserveFaktor">Usable charge reserve (0-1)</span><input type="number" step="0.05" name="akkuReserveFaktor" /></label>
+            <label><span data-i18n="em.ueberschussToleranz">Surplus tolerance (ms)</span><input type="number" step="500" name="ueberschussToleranzMs" /></label>
+          </div>
+          <p class="hint" data-i18n="em.akkuFreigabeHint">Below the SoC threshold the battery's free charging power counts as real absorption: a short surplus up to that power is not throttled away.</p>
           <label style="display:flex;align-items:center;gap:8px;margin-top:6px;">
             <input type="checkbox" name="aktuierungAktiv" id="em-aktuierung-chk" style="width:auto;margin:0;" />
             <span data-i18n="em.aktuierungAktiv" style="font-weight:600;">Enable actuation</span>
@@ -2635,6 +2644,8 @@
         'wrSollwertMinKw', 'wrSollwertMaxKw', 'totbandKw',
         'reglerVerstaerkung', 'maxSchrittKw', 'failsafeSollwertKw',
         'pInstalliertKw', 'strahlungReferenzWm2',
+        'akkuFreigabeSocProzent', 'akkuFreigabeUebergangProzent',
+        'akkuReserveFaktor', 'ueberschussToleranzMs',
       ];
 
       function emFmtKw(v) {
