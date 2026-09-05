@@ -78,8 +78,129 @@ function akkuFreigabeFaktor(akku, config) {
   return clamp((schwelle - soc) / band, 0, 1);
 }
 
-function effektiveEinspeisungKw(napEinspeisungKw, akku, config) {
+// --- 3b) Akku-Annahme-Wache: gilt die gutgeschriebene Ladereserve überhaupt noch? ---
+// Die Ladereserve ist eine ANNAHME ("der Akku nimmt den Überschuss weg"). Sie ist nur gültig,
+// solange der Akku das auch tut. Fällt er aus (Stopp, Störung, Komm-Fehler, fremde Sollwertvorgabe),
+// meldet er weiterhin 50 kW Max-Ladeleistung, nimmt aber nichts ab — ohne Wache würde der Regler
+// dann dauerhaft 50 kW echte Netzeinspeisung durchgehen lassen.
+//
+// Zwei unabhängige Kriterien:
+//   (a) Statusregister (Systemmodus/Betriebszustand, sofern gebunden): meldet der Akku einen
+//       nicht betriebsbereiten Zustand -> Reserve sofort sperren.
+//   (b) Verhalten: steht trotz gutgeschriebener Reserve länger als akkuReaktionszeitMs ein echter
+//       Netzüberschuss an, nimmt der Akku faktisch nicht an -> Reserve sperren. Das greift auch,
+//       wenn die Statusregister nichts melden oder gar nicht gebunden sind.
+//
+// RÜCKKEHR: Die Sperre löst sich selbst, sobald der Akku wieder arbeitet — entweder weil er wieder
+// lädt (>= akkuMindestLadeleistungKw) oder, als Rückfallebene ohne Statusregister, über eine Probe
+// alle akkuSperreWiederholungMs. Nimmt er dann immer noch nicht an, greift die Sperre binnen eines
+// Takts wieder (Karenzzeit 0 innerhalb des Wiederholungsfensters), sodass keine wiederkehrenden
+// Einspeise-Fenster entstehen.
+const AKKU_WACHE_INIT = Object.freeze({
+  napUeberschussSeitMs: null,
+  gesperrt: false,
+  sperreSeitMs: null,
+  letzteSperreMs: null, // wann zuletzt gesperrt wurde (verkürzt die Karenzzeit danach)
+  probeLaeuft: false,   // Sperre wurde nur zum Neubewerten kurz gelöst
+});
+
+// Statusregister-Prüfung. Nicht gebunden / kein Wert => keine Aussage => betriebsbereit
+// (das Verhaltenskriterium sichert diesen Fall ab).
+function akkuBetriebsbereit(akku, config) {
+  if (!akku || akku.verfuegbar === false) return false;
+  const pruefe = (wert, erlaubt) => {
+    if (wert === null || wert === undefined) return true;   // kein Signal -> keine Aussage
+    if (!Array.isArray(erlaubt) || erlaubt.length === 0) return true;
+    return erlaubt.some((ok) => Number(ok) === Number(wert));
+  };
+  return pruefe(akku.systemmodus, config && config.akkuSystemmodusOk)
+      && pruefe(akku.betriebszustand, config && config.akkuBetriebszustandOk);
+}
+
+function akkuAnnahmeWache({ napEinspeisungKw, pLimitKw: limit, akku, jetztMs, zustand }, config) {
+  const z = { ...AKKU_WACHE_INIT, ...(zustand || {}) };
+  const jetzt = isNum(jetztMs) ? jetztMs : null;
+  const wiederholung = Math.max(0, Number(config && config.akkuSperreWiederholungMs) || 0);
+
+  // (a) Statusregister
+  if (!akkuBetriebsbereit(akku, config)) {
+    return {
+      gesperrt: true,
+      grund: 'Akku nicht betriebsbereit',
+      zustand: {
+        napUeberschussSeitMs: null,
+        gesperrt: true,
+        sperreSeitMs: z.gesperrt && z.sperreSeitMs != null ? z.sperreSeitMs : jetzt,
+        letzteSperreMs: jetzt,
+        probeLaeuft: false,
+      },
+    };
+  }
+
+  const mindestLade = Number(config && config.akkuMindestLadeleistungKw);
+  const laedt = Math.max(0, Number(akku && akku.ladeleistungKw) || 0)
+    >= (Number.isFinite(mindestLade) ? mindestLade : 0);
+  const totband = Number(config && config.totbandKw) || 0;
+  const ueberschuss = isNum(napEinspeisungKw) && isNum(limit)
+    ? (napEinspeisungKw - limit) > totband
+    : false;
+
+  // --- Sperre lösen: arbeitet der Akku wieder? ---
+  let gesperrt = z.gesperrt;
+  let sperreSeitMs = z.sperreSeitMs;
+  let probeLaeuft = z.probeLaeuft;
+  let grund = gesperrt ? 'Akku nimmt nicht an' : null;
+  if (laedt) probeLaeuft = false;                              // Akku arbeitet nachweislich
+  if (gesperrt) {
+    const probeFaellig = wiederholung > 0 && jetzt != null && sperreSeitMs != null
+      && (jetzt - sperreSeitMs) >= wiederholung;
+    if (laedt && !ueberschuss) {
+      // Nachweislich zurück: er lädt UND der Netzüberschuss ist weg. Ladeleistung allein genügt
+      // nicht — ein Akku, der 20 kW zieht während 8 kW ins Netz gehen, nimmt eben nicht an.
+      gesperrt = false; sperreSeitMs = null; grund = null;
+    } else if (probeFaellig) {
+      // Probe: Sperre einmal lösen und neu bewerten. Nimmt er weiterhin nicht an, greift sie
+      // beim nächsten Überschuss-Takt sofort wieder (Karenzzeit 0) — kein zweites Zeitfenster.
+      gesperrt = false; sperreSeitMs = null; grund = null; probeLaeuft = true;
+    }
+  }
+
+  // --- Sperre setzen: Überschuss steht trotz Reserve zu lange an ---
+  let seit = z.napUeberschussSeitMs;
+  let letzteSperreMs = z.letzteSperreMs;
+  if (!gesperrt) {
+    if (ueberschuss && akkuReserveKw(akku, config) > 0) {
+      if (seit == null) seit = jetzt;
+      // Während einer laufenden Probe ohne Karenz sperren — sonst entstünde bei einem dauerhaft
+      // toten Akku bei jeder Probe ein neues Einspeisefenster von voller Reaktionszeit.
+      // Auch kurz nach einer Sperre ohne Karenz sperren, sonst pendelt der Regler mit jeweils
+      // voller Reaktionszeit als Einspeisefenster.
+      const kuerzlichGesperrt = wiederholung > 0 && jetzt != null && letzteSperreMs != null
+        && (jetzt - letzteSperreMs) < wiederholung;
+      const karenz = (probeLaeuft || kuerzlichGesperrt)
+        ? 0
+        : Math.max(0, Number(config && config.akkuReaktionszeitMs) || 0);
+      if (jetzt != null && seit != null && (jetzt - seit) >= karenz) {
+        gesperrt = true; grund = 'Akku nimmt nicht an';
+        sperreSeitMs = jetzt; letzteSperreMs = jetzt; seit = null;
+      }
+    } else {
+      seit = null;
+    }
+  } else {
+    seit = null;
+  }
+
+  return {
+    gesperrt,
+    grund,
+    zustand: { napUeberschussSeitMs: seit, gesperrt, sperreSeitMs, letzteSperreMs, probeLaeuft },
+  };
+}
+
+function effektiveEinspeisungKw(napEinspeisungKw, akku, config, opts) {
   if (!config.akkuVorsteuerung || !akku || akku.verfuegbar === false) return napEinspeisungKw;
+  const reserveGesperrt = Boolean(opts && opts.reserveGesperrt);
   const maxLade = Math.max(0, Number(akku.maxLadeleistungKw) || 0);
   const lade    = Math.max(0, Number(akku.ladeleistungKw) || 0);
 
@@ -98,7 +219,7 @@ function effektiveEinspeisungKw(napEinspeisungKw, akku, config) {
   const rf = Number.isFinite(Number(config.akkuReserveFaktor))
     ? clamp(Number(config.akkuReserveFaktor), 0, 1)
     : 1;
-  const puffer = akkuReserveKw(akku, config) * rf;
+  const puffer = reserveGesperrt ? 0 : akkuReserveKw(akku, config) * rf;
 
   return napEinspeisungKw - f * puffer + (1 - f) * vorsteuerung;
 }
@@ -113,15 +234,21 @@ function effektiveEinspeisungKw(napEinspeisungKw, akku, config) {
 // binnen Sekunden selbst weg. Erst wenn der Überschuss länger steht, größer als die Akku-Ladegrenze
 // ist oder der Akku voll/nicht verfügbar ist, greift der Regler ein.
 // Zeitführung ist zustandslos: der Caller reicht jetztMs + den letzten ueberschussSeitMs herein.
-function reglerSchritt({ napEinspeisungKw, pLimitKw: limit, wrSollwertAktuellKw, akku, jetztMs, ueberschussSeitMs }, config) {
+function reglerSchritt({ napEinspeisungKw, pLimitKw: limit, wrSollwertAktuellKw, akku, jetztMs, ueberschussSeitMs, akkuWache }, config) {
   if (!isNum(limit)) {
     return {
       wrSollwertKw: null, drosselAktiv: false, abweichungKw: null,
       effektiveEinspeisungKw: null, grund: 'kein P_limit', ueberschussSeitMs: null,
+      akkuWache: { ...AKKU_WACHE_INIT, ...(akkuWache || {}) }, akkuSperre: null,
     };
   }
+  // Wache zuerst: sie entscheidet, ob die Ladereserve in diesem Takt überhaupt zählt.
+  const wache = akkuAnnahmeWache(
+    { napEinspeisungKw, pLimitKw: limit, akku, jetztMs, zustand: akkuWache },
+    config,
+  );
   const start = isNum(wrSollwertAktuellKw) ? wrSollwertAktuellKw : config.wrSollwertMaxKw;
-  const effektiv = effektiveEinspeisungKw(napEinspeisungKw, akku, config);
+  const effektiv = effektiveEinspeisungKw(napEinspeisungKw, akku, config, { reserveGesperrt: wache.gesperrt });
   const abweichung = effektiv - limit; // >0: über Limit
   const totband = Number(config.totbandKw) || 0;
   const kp = Number(config.reglerVerstaerkung) || 0;
@@ -143,7 +270,8 @@ function reglerSchritt({ napEinspeisungKw, pLimitKw: limit, wrSollwertAktuellKw,
     const ladegrenze = akkuMaxLadeGrenzeKw(akku, config);
     const rohUeberschuss = isNum(napEinspeisungKw) ? napEinspeisungKw - limit : abweichung;
     const akkuKannNoch = akkuFreigabeFaktor(akku, config) > 0 && akkuReserveKw(akku, config) > 0;
-    toleriert = toleranzMs > 0
+    toleriert = !wache.gesperrt
+      && toleranzMs > 0
       && jetzt != null && seit != null
       && (jetzt - seit) < toleranzMs
       && akkuKannNoch
@@ -173,6 +301,8 @@ function reglerSchritt({ napEinspeisungKw, pLimitKw: limit, wrSollwertAktuellKw,
     effektiveEinspeisungKw: effektiv,
     grund,
     ueberschussSeitMs: seit,
+    akkuWache: wache.zustand,
+    akkuSperre: wache.gesperrt ? { gesperrt: true, grund: wache.grund } : { gesperrt: false, grund: null },
   };
 }
 
@@ -205,6 +335,9 @@ module.exports = {
   akkuMaxLadeGrenzeKw,
   akkuReserveKw,
   akkuFreigabeFaktor,
+  akkuBetriebsbereit,
+  akkuAnnahmeWache,
+  AKKU_WACHE_INIT,
   effektiveEinspeisungKw,
   reglerSchritt,
   dargebotKw,

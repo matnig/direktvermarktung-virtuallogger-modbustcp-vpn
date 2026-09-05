@@ -7,6 +7,8 @@ const {
   effektiveEinspeisungKw,
   akkuReserveKw,
   akkuFreigabeFaktor,
+  akkuBetriebsbereit,
+  akkuAnnahmeWache,
   reglerSchritt,
   dargebotKw,
   pKannKw,
@@ -273,4 +275,114 @@ test('Toleranz greift nicht bei vollem Akku (SoC über Schwelle)', () => {
     c,
   );
   assert.strictEqual(r.grund, 'drosseln');
+});
+
+// --- Annahme-Wache: Reserve gilt nur, solange der Akku sie auch nutzt ---
+
+// Hilfsfunktion: Regler über mehrere Takte laufen lassen (1 s Raster)
+function laufen(cfgObj, akkuFn, napFn, takte, startSoll) {
+  let soll = startSoll, seit = null, wache = undefined;
+  const verlauf = [];
+  for (let i = 0; i < takte; i++) {
+    const jetzt = (i + 1) * 1000;
+    const r = reglerSchritt({
+      napEinspeisungKw: napFn(i), pLimitKw: 0, wrSollwertAktuellKw: soll,
+      akku: akkuFn(i), jetztMs: jetzt, ueberschussSeitMs: seit, akkuWache: wache,
+    }, cfgObj);
+    soll = r.wrSollwertKw; seit = r.ueberschussSeitMs; wache = r.akkuWache;
+    verlauf.push({ t: jetzt, soll, grund: r.grund, gesperrt: r.akkuSperre.gesperrt, sperrgrund: r.akkuSperre.grund });
+  }
+  return verlauf;
+}
+
+test('Speicher aus: Reserve wird nach der Reaktionszeit gesperrt und es wird gedrosselt', () => {
+  const c = cfg();
+  const toterAkku = { verfuegbar: true, socProzent: 11, ladeleistungKw: 0, maxLadeleistungKw: 50 };
+  const v = laufen(c, () => toterAkku, () => 30, 15, 125);
+
+  // erste 10 s: Reserve zählt noch, Sollwert bleibt oben
+  assert.strictEqual(v[9].gesperrt, false);
+  assert.strictEqual(v[9].soll, 125);
+  // 10 s nach dem ersten Überschuss-Takt greift die Sperre
+  assert.strictEqual(v[10].gesperrt, true);
+  assert.strictEqual(v[10].sperrgrund, 'Akku nimmt nicht an');
+  assert.strictEqual(v[10].grund, 'drosseln');
+  // und der Sollwert wird tatsächlich heruntergefahren
+  assert.ok(v[14].soll < 110, `erwartet deutlich unter 125, war ${v[14].soll}`);
+});
+
+test('Speicher kommt zurück: Sperre löst sich, sobald er wieder lädt', () => {
+  const c = cfg();
+  const tot   = { verfuegbar: true, socProzent: 11, ladeleistungKw: 0, maxLadeleistungKw: 50 };
+  const laedt = { verfuegbar: true, socProzent: 11, ladeleistungKw: 20, maxLadeleistungKw: 50 };
+  // 12 Takte tot (Sperre greift), danach lädt er wieder
+  const v = laufen(c, (i) => (i < 12 ? tot : laedt), (i) => (i < 12 ? 30 : 0), 16, 125);
+  assert.strictEqual(v[11].gesperrt, true);
+  assert.strictEqual(v[12].gesperrt, false);   // erster Takt mit Ladung -> frei
+  assert.strictEqual(v[12].sperrgrund, null);
+  assert.strictEqual(v[15].grund, 'lockern');  // Reserve zählt wieder, PV fährt hoch
+});
+
+test('Statusregister melden Störung: Reserve sofort gesperrt, ohne Wartezeit', () => {
+  const c = cfg();
+  // Werte aus dem echten Intilion-Vorfall: Systemmodus 12, Betriebszustand 13
+  const gestoert = { verfuegbar: true, socProzent: 11, ladeleistungKw: 0, maxLadeleistungKw: 50,
+                     systemmodus: 12, betriebszustand: 13 };
+  assert.strictEqual(akkuBetriebsbereit(gestoert, c), false);
+  const r = reglerSchritt(
+    { napEinspeisungKw: 30, pLimitKw: 0, wrSollwertAktuellKw: 125, akku: gestoert, jetztMs: 1000 },
+    c,
+  );
+  assert.strictEqual(r.akkuSperre.gesperrt, true);
+  assert.strictEqual(r.akkuSperre.grund, 'Akku nicht betriebsbereit');
+  assert.strictEqual(r.grund, 'drosseln');
+  assert.strictEqual(r.wrSollwertKw, 120);
+});
+
+test('Statusregister wieder gut: Sperre wird aufgehoben', () => {
+  const c = cfg();
+  const gestoert = { verfuegbar: true, socProzent: 11, ladeleistungKw: 0, maxLadeleistungKw: 50,
+                     systemmodus: 12, betriebszustand: 13 };
+  const gut      = { verfuegbar: true, socProzent: 11, ladeleistungKw: 20, maxLadeleistungKw: 50,
+                     systemmodus: 40, betriebszustand: 40 };
+  assert.strictEqual(akkuBetriebsbereit(gut, c), true);
+  const v = laufen(c, (i) => (i < 5 ? gestoert : gut), (i) => (i < 5 ? 30 : 0), 8, 125);
+  assert.strictEqual(v[4].gesperrt, true);
+  assert.strictEqual(v[5].gesperrt, false);
+});
+
+test('Statusregister nicht gebunden => keine Aussage => betriebsbereit', () => {
+  const c = cfg();
+  const ohne = { verfuegbar: true, socProzent: 11, ladeleistungKw: 0, maxLadeleistungKw: 50 };
+  assert.strictEqual(akkuBetriebsbereit(ohne, c), true); // Verhaltenskriterium sichert diesen Fall
+});
+
+test('dauerhaft toter Akku erzeugt keine wiederkehrenden Einspeisefenster', () => {
+  const c = cfg({ akkuSperreWiederholungMs: 5000 }); // Probe zum Testen auf 5 s verkürzt
+  const tot = { verfuegbar: true, socProzent: 11, ladeleistungKw: 0, maxLadeleistungKw: 50 };
+  const v = laufen(c, () => tot, () => 30, 30, 125);
+  // Nach der Probe darf höchstens ein einzelner Takt offen sein, dann sofort wieder Sperre
+  const offeneTakte = v.slice(10).filter((x) => !x.gesperrt).length;
+  assert.ok(offeneTakte <= 3, `zu viele offene Takte nach der Sperre: ${offeneTakte}`);
+  assert.strictEqual(v[29].gesperrt, true);
+});
+
+test('gesunder Betrieb: kurze Wolkenspitze löst keine Sperre aus', () => {
+  const c = cfg();
+  const akku = (i) => ({ verfuegbar: true, socProzent: 11,
+                         ladeleistungKw: i < 2 ? 0 : 35, maxLadeleistungKw: 50,
+                         systemmodus: 40, betriebszustand: 40 });
+  // 3 s Überschuss, dann zieht der Akku ihn weg (echtes Feldverhalten 05.09. 08:14)
+  const v = laufen(c, akku, (i) => (i < 3 ? 9 : -1), 12, 125);
+  assert.ok(v.every((x) => !x.gesperrt), 'keine Sperre erwartet');
+  assert.strictEqual(v[11].soll, 125);
+});
+
+test('Wache greift auch bei teilweiser Annahme (Akku nimmt zu wenig ab)', () => {
+  const c = cfg();
+  // Akku lädt zwar 20 kW, aber es bleiben dauerhaft 8 kW echte Einspeisung stehen
+  const traege = { verfuegbar: true, socProzent: 11, ladeleistungKw: 20, maxLadeleistungKw: 50 };
+  const v = laufen(c, () => traege, () => 8, 15, 125);
+  assert.strictEqual(v[10].gesperrt, true);
+  assert.ok(v[14].soll < 125);
 });

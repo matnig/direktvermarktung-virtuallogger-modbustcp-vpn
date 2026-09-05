@@ -43,6 +43,12 @@ class EinspeisemanagementConfig {
     akkuFreigabeUebergangProzent = 5,    // linearer Übergang darunter (80..85 %), kein Sprung
     akkuReserveFaktor = 1,               // Anteil der Ladereserve, der angerechnet wird (Sicherheitsmarge)
     ueberschussToleranzMs = 5000,        // kurzer Überschuss (bis Akku-Ladegrenze) wird so lange ausgesessen
+    // Annahme-Wache: die Ladereserve gilt nur, solange der Akku sie auch nutzt.
+    akkuReaktionszeitMs = 10000,         // steht der Überschuss länger an -> Reserve sperren
+    akkuMindestLadeleistungKw = 1,       // ab dieser Ladeleistung gilt der Akku wieder als arbeitend
+    akkuSperreWiederholungMs = 300000,   // Probe-Intervall, um eine Sperre neu zu bewerten (0 = nie)
+    akkuSystemmodusOk = [40, 41, 140],   // Intilion 5016: Aktiv / Teil-Aktiv / Netzbildend (12 = Komm-Fehler)
+    akkuBetriebszustandOk = [40, 41],    // Intilion 5056: Run / Standby (13 = Start-Komm, 20 = Stop)
     wrSollwertMaxKw = 125,               // Obergrenze WR-Sollwert
     wrSollwertMinKw = 0,                 // Untergrenze WR-Sollwert
 
@@ -61,6 +67,8 @@ class EinspeisemanagementConfig {
       akkuSocRegisterId: null,          // Intilion 5002 SoC (%)
       akkuLadeleistungRegisterId: null, // Intilion 5040 Wirkleistung System (neg=laden)
       akkuMaxLadeRegisterId: null,      // Intilion 5027 Max Ladeleistung (kW)
+      akkuSystemmodusRegisterId: null,  // Intilion 5016 Systemmodus (Annahme-Wache; null = Prüfung inaktiv)
+      akkuBetriebszustandRegisterId: null, // Intilion 5056 Betriebszustand (Annahme-Wache)
       logoSourceId: null,               // LOGO Quelle (für Aktuierung)
       aq3TargetRegisterId: null,        // LOGO Holding 5 (VW10) — WR-Sollwert kW
       // --- P_kann / Dargebot ---
@@ -96,6 +104,11 @@ class EinspeisemanagementConfig {
     this.akkuFreigabeUebergangProzent = akkuFreigabeUebergangProzent;
     this.akkuReserveFaktor = akkuReserveFaktor;
     this.ueberschussToleranzMs = ueberschussToleranzMs;
+    this.akkuReaktionszeitMs = akkuReaktionszeitMs;
+    this.akkuMindestLadeleistungKw = akkuMindestLadeleistungKw;
+    this.akkuSperreWiederholungMs = akkuSperreWiederholungMs;
+    this.akkuSystemmodusOk = akkuSystemmodusOk;
+    this.akkuBetriebszustandOk = akkuBetriebszustandOk;
     this.wrSollwertMaxKw = wrSollwertMaxKw;
     this.wrSollwertMinKw = wrSollwertMinKw;
     this.failsafeSollwertKw = failsafeSollwertKw;
@@ -109,6 +122,8 @@ class EinspeisemanagementConfig {
       akkuSocRegisterId: null,
       akkuLadeleistungRegisterId: null,
       akkuMaxLadeRegisterId: null,
+      akkuSystemmodusRegisterId: null,
+      akkuBetriebszustandRegisterId: null,
       logoSourceId: null,
       aq3TargetRegisterId: null,
       pIstSourceRegisterId: null,

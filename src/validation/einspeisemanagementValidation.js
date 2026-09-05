@@ -35,6 +35,16 @@ function validateEinspeisemanagement(payload = {}) {
   numRange('akkuFreigabeUebergangProzent', 0, 100);
   numRange('akkuReserveFaktor', 0, 1);
   numRange('ueberschussToleranzMs', 0, 60000);
+  numRange('akkuReaktionszeitMs', 0, 600000);
+  numRange('akkuMindestLadeleistungKw', 0, 10000);
+  numRange('akkuSperreWiederholungMs', 0, 3600000);
+
+  for (const key of ['akkuSystemmodusOk', 'akkuBetriebszustandOk']) {
+    if (p[key] === undefined) continue;
+    if (!Array.isArray(p[key]) || !p[key].every((v) => isNum(v))) {
+      errors.push(`${key} must be an array of numbers`);
+    }
+  }
 
   if (p.aktuierungAktiv !== undefined && typeof p.aktuierungAktiv !== 'boolean') {
     errors.push('aktuierungAktiv must be a boolean');
@@ -77,7 +87,8 @@ function validateEinspeisemanagement(payload = {}) {
       const idKeys = [
         'direktvermarkterVariableId', 'kontaktI1RegisterId', 'kontaktI2RegisterId',
         'kontaktI3RegisterId', 'akkuSocRegisterId', 'akkuLadeleistungRegisterId',
-        'akkuMaxLadeRegisterId', 'logoSourceId', 'aq3TargetRegisterId',
+        'akkuMaxLadeRegisterId', 'akkuSystemmodusRegisterId', 'akkuBetriebszustandRegisterId',
+        'logoSourceId', 'aq3TargetRegisterId',
         'pIstSourceRegisterId', 'strahlungOstVariableId', 'strahlungWestVariableId',
         'pKannTargetRegisterId', 'pIstTargetRegisterId',
         'netzbetreiberOutLowRegisterId', 'netzbetreiberOutHighRegisterId',
