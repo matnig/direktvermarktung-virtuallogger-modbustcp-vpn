@@ -17,6 +17,7 @@ const mqttService                   = require('../services/mqttService');
 const variableService               = require('../services/variableService');
 const einspeisemanagementService    = require('../services/einspeisemanagementService');
 const controlService                = require('../services/controlService');
+const calibrationSamplerService     = require('../services/calibrationSamplerService');
 
 initializeCollections([
   { name: 'sources',    fallback: [] },
@@ -50,4 +51,5 @@ app.listen(PORT, HOST, async () => {
   watchdogService.startWatchdog();
   mqttService.connect();
   controlService.startControl();
+  calibrationSamplerService.init(); // Kalibrier-Sampler fortsetzen, falls aktiviert
 });
