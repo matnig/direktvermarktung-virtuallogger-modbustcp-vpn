@@ -57,8 +57,21 @@ async function checkForUpdates() {
   };
 }
 
+// Laufzeitdaten duerfen ein Update nie blockieren.
+//
+// Das Datenverzeichnis gehoert nicht in die Versionierung (.gitignore deckt es ab). Ist dort
+// aus einem frueheren Fehler noch etwas verfolgt, schreibt der Betrieb permanent daran und
+// `git pull --ff-only` bricht mit "local changes would be overwritten" ab — das Geraet laesst
+// sich dann gar nicht mehr aktualisieren. Deshalb vor dem Pull die lokalen Aenderungen genau
+// dort verwerfen. Im Normalfall greift der Befehl ins Leere und tut nichts.
+async function verwerfeDatenaenderungen() {
+  const r = await run('git', ['checkout', '--', 'src/persistence/data']);
+  return { ...r, cmd: r.cmd, ok: true, hinweis: r.ok ? undefined : 'nichts zu verwerfen' };
+}
+
 async function applyUpdate() {
   const steps = [];
+  steps.push(await verwerfeDatenaenderungen());
   const pull = await run('git', ['pull', '--ff-only']);
   steps.push(pull);
   if (!pull.ok) return { ok: false, steps };
