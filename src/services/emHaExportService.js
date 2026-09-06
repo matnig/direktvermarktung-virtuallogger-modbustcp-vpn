@@ -36,6 +36,8 @@ const STATUS_FELDER = [
   { nr: 11, pfad: 'akku.socProzent',       name: 'Akku SoC',                   unit: '%',    dataType: 'float32', deviceClass: 'battery' },
   { nr: 12, pfad: 'akku.ladeleistungKw',   name: 'Akku Ladeleistung',          unit: 'kW',   dataType: 'float32' },
   { nr: 13, pfad: 'akku.ladbareEnergieKwh',name: 'Akku ladbare Energie',       unit: 'kWh',  dataType: 'float32', deviceClass: 'none' },
+  { nr: 19, pfad: 'akku.entladeleistungKw', name: 'Akku Entladeleistung',    unit: 'kW',   dataType: 'float32' },
+  { nr: 20, pfad: 'akku.wirkleistungKw',   name: 'Akku Wirkleistung',          unit: 'kW',   dataType: 'float32' },
   { nr: 14, pfad: 'akkuReserveKw',         name: 'Akku Ladereserve',           unit: 'kW',   dataType: 'float32' },
   { nr: 15, pfad: 'akkuRestdauerS',        name: 'Akku Restladedauer',         unit: 's',    dataType: 'float32', deviceClass: 'duration' },
   { nr: 16, pfad: 'akkuFreigabeFaktor',    name: 'Akku Freigabefaktor',        unit: '',     dataType: 'float32' },

@@ -100,7 +100,13 @@ function computeOnce() {
   const akku = {
     verfuegbar: ladeReg != null,
     socProzent: readRegister(b.akkuSocRegisterId),
+    // Intilion 5040: positiv = entladen, negativ = laden.
+    // ladeleistungKw/entladeleistungKw sind die jeweils abgeschnittenen Richtungen (fuer den
+    // Regler zaehlt nur die Aufnahme), wirkleistungKw ist der vorzeichenbehaftete Gesamtwert
+    // in UNSERER Konvention: positiv = laden, negativ = entladen.
     ladeleistungKw: ladeReg == null ? null : Math.max(0, -ladeReg),
+    entladeleistungKw: ladeReg == null ? null : Math.max(0, ladeReg),
+    wirkleistungKw: ladeReg == null ? null : -ladeReg,
     maxLadeleistungKw: readRegister(b.akkuMaxLadeRegisterId),
     ladbareEnergieKwh: readRegister(b.akkuLadbareEnergieRegisterId),
     // Statusregister für die Annahme-Wache (optional; nicht gebunden = keine Aussage)

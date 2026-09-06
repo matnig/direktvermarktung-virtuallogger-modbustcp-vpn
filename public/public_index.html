@@ -2729,9 +2729,16 @@
         const wr = document.getElementById('em-st-wr');
         wr.textContent = emFmtKw(st.wrSollwertKw) + (st.regler && st.regler.grund ? ` · ${st.regler.grund}` : '');
         const a = st.akku || {};
+        // Richtung ausschreiben: ein nacktes "0.0 kW" bei entladendem Akku ist irrefuehrend
+        let akkuLeistung = '';
+        if (a.wirkleistungKw != null) {
+          const w = a.wirkleistungKw;
+          if (w > 0.05)       akkuLeistung = ` · ${t('em.akkuLaedt')} ${emFmtKw(w)}`;
+          else if (w < -0.05) akkuLeistung = ` · ${t('em.akkuEntlaedt')} ${emFmtKw(-w)}`;
+          else                akkuLeistung = ` · ${t('em.akkuIdle')}`;
+        }
         document.getElementById('em-st-akku').textContent =
-          (a.socProzent == null ? '—' : `SoC ${a.socProzent}%`) +
-          (a.ladeleistungKw == null ? '' : ` · ${emFmtKw(a.ladeleistungKw)}`);
+          (a.socProzent == null ? '—' : `SoC ${a.socProzent}%`) + akkuLeistung;
         const miss = document.getElementById('em-st-missing');
         miss.textContent = (st.inputsFehlen && st.inputsFehlen.length)
           ? `${t('em.inputsMissing')}: ${st.inputsFehlen.join(', ')}` : '';
