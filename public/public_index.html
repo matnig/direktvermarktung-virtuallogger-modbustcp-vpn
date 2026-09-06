@@ -5,20 +5,49 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Modbus Bridge</title>
     <style>
-      body { font-family: Arial, sans-serif; margin: 24px; max-width: 1400px; }
+      :root {
+        --bg: #f4f6f9;
+        --card: #ffffff;
+        --line: #e3e8ef;
+        --text: #1f2733;
+        --muted: #6b7684;
+        --accent: #2f6fed;
+        --accent-soft: #eaf1fe;
+        --ok: #1a9c56;
+        --warn: #b8860b;
+        --err: #d64545;
+        --shadow: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.05);
+      }
+      * { box-sizing: border-box; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+        margin: 0; padding: 0 24px 40px; background: var(--bg); color: var(--text);
+        max-width: 1560px; margin-inline: auto;
+      }
       h1, h2, h3 { margin-bottom: 8px; }
+      h2 { font-size: 17px; }
       .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
       .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; }
-      form, .panel { border: 1px solid #ccc; border-radius: 8px; padding: 16px; }
+      form, .panel {
+        border: 1px solid var(--line); border-radius: 10px; padding: 18px;
+        background: var(--card); box-shadow: var(--shadow);
+      }
       label { display: block; margin-top: 10px; font-size: 14px; }
-      input, select, textarea, button { width: 100%; padding: 8px; margin-top: 4px; box-sizing: border-box; }
-      button { cursor: pointer; }
+      input, select, textarea, button {
+        width: 100%; padding: 8px 10px; margin-top: 4px; box-sizing: border-box;
+        border: 1px solid var(--line); border-radius: 6px; font-size: 14px; background: #fff;
+        font-family: inherit; color: inherit;
+      }
+      input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+      button { cursor: pointer; background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+      button:hover { filter: brightness(1.06); }
       ul { padding-left: 18px; }
       .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-      .hint { color: #666; font-size: 13px; }
+      .hint { color: var(--muted); font-size: 13px; }
       pre { background: #111; color: #eee; padding: 12px; border-radius: 8px; overflow: auto; max-height: 400px; }
-      .toolbar { display: flex; gap: 12px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
-      .toolbar button { width: auto; padding: 8px 16px; }
+      .toolbar { display: flex; gap: 10px; margin-bottom: 4px; align-items: center; flex-wrap: wrap; }
+      .toolbar button { width: auto; padding: 7px 14px; background: #fff; color: var(--text); border-color: var(--line); font-weight: 500; }
+      .toolbar button:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
       .toolbar label { margin: 0; font-size: 14px; }
 
       /* runtime panel */
@@ -47,25 +76,60 @@
       .err { color: #dc3545; }
       .no-data { padding: 16px; color: #888; font-size: 13px; }
 
+      /* kopfzeile */
+      .topbar {
+        display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+        padding: 18px 0 14px; margin-bottom: 4px;
+      }
+      .topbar h1 { margin: 0; font-size: 21px; letter-spacing: -.01em; }
+      .topbar .sub { color: var(--muted); font-size: 13px; }
+      .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; align-items: center; }
+      .chip {
+        display: inline-flex; align-items: center; gap: 6px;
+        font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: 999px;
+        background: #eef1f5; color: var(--muted); white-space: nowrap;
+      }
+      .chip::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+      .chip.ok   { background: #e7f6ee; color: var(--ok); }
+      .chip.warn { background: #fdf4e3; color: var(--warn); }
+      .chip.bad  { background: #fdecec; color: var(--err); }
+
       /* navigation + uebersicht */
-      .nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 22px; padding-bottom: 12px; border-bottom: 2px solid #e6e6e6; }
-      .nav-btn { width: auto; padding: 8px 14px; margin: 0; border: 1px solid #ccc; background: #fff; border-radius: 6px; font-size: 14px; }
-      .nav-btn:hover { background: #f2f6ff; }
-      .nav-btn.active { background: #4285f4; border-color: #4285f4; color: #fff; font-weight: 600; }
+      .nav {
+        display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 22px; padding: 6px;
+        background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+        box-shadow: var(--shadow); position: sticky; top: 0; z-index: 20;
+      }
+      .nav-btn {
+        width: auto; padding: 8px 14px; margin: 0; border: 1px solid transparent;
+        background: transparent; color: var(--muted); border-radius: 7px; font-size: 14px; font-weight: 500;
+      }
+      .nav-btn:hover { background: var(--accent-soft); color: var(--accent); }
+      .nav-btn.active { background: var(--accent); color: #fff; font-weight: 600; }
       .view[hidden] { display: none; }
-      .ov-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 14px; }
-      .ov-card { border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px 14px; background: #fafbfc; }
-      .ov-card h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: #555; }
-      .ov-row { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; padding: 3px 0; border-bottom: 1px solid #eef0f2; }
+      .ov-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(285px, 1fr)); gap: 14px; }
+      .ov-card {
+        border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 9px;
+        padding: 13px 15px; background: var(--card); box-shadow: var(--shadow);
+      }
+      .ov-card h3 { margin: 0 0 9px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+      .ov-row { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; padding: 4px 0; border-bottom: 1px solid #f2f4f7; }
       .ov-row:last-child { border-bottom: none; }
-      .ov-row > span:last-child { font-weight: 600; text-align: right; }
-      .ov-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(205px, 1fr)); gap: 12px; }
-      .ov-tile { border: 1px solid #e0e0e0; border-radius: 8px; padding: 10px 12px; background: #fff; }
-      .ov-tile .t-name { font-size: 12px; color: #666; margin-bottom: 4px; }
-      .ov-tile .t-src { font-size: 11px; color: #999; }
-      .ov-tile .t-val { font-size: 21px; font-weight: 600; line-height: 1.2; }
-      .ov-tile .t-unit { font-size: 13px; font-weight: 400; color: #666; margin-left: 3px; }
-      .ov-tile.t-err { border-color: #f5c6cb; background: #fff8f8; }
+      .ov-row > span:first-child { color: var(--muted); }
+      .ov-row > span:last-child { font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+      .ov-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 13px; }
+      .ov-tile {
+        border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; background: var(--card);
+        box-shadow: var(--shadow); transition: transform .12s ease, box-shadow .12s ease;
+      }
+      .ov-tile:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(16,24,40,.09); }
+      .ov-tile .t-name { font-size: 12px; color: var(--muted); margin-bottom: 6px; font-weight: 500; }
+      .ov-tile .t-src { font-size: 11px; color: #9aa4b2; margin-top: 6px; }
+      .ov-tile .t-val { font-size: 27px; font-weight: 650; line-height: 1.15; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+      .ov-tile .t-unit { font-size: 13px; font-weight: 400; color: var(--muted); margin-left: 4px; }
+      .ov-tile.t-err { border-color: #f3c2c2; background: #fffafa; }
+      .ov-tile.t-err .t-val { color: var(--err); }
+      .ov-sub { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
       .ov-pick-group { margin-top: 14px; }
       .ov-pick-group h4 { margin: 0 0 6px; font-size: 13px; color: #444; }
       .ov-pick-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 4px 16px; max-height: 260px; overflow: auto; border: 1px solid #eee; border-radius: 6px; padding: 8px; }
@@ -146,8 +210,13 @@
   </head>
   <body>
     <div id="toast"></div>
-    <h1>Modbus Bridge</h1>
-    <p class="hint" data-i18n="app.subtitle">Runtime polling · Live values · Profile application · Export / Import</p>
+    <div class="topbar">
+      <div>
+        <h1>Modbus Bridge</h1>
+        <div class="sub" data-i18n="app.subtitle">Runtime polling · Live values · Profile application · Export / Import</div>
+      </div>
+      <div class="chips" id="status-chips"></div>
+    </div>
 
     <div class="toolbar">
       <button id="poll-once" data-i18n="toolbar.pollOnce">Poll once</button>
@@ -195,20 +264,19 @@
     <div class="view" id="view-uebersicht">
       <div class="panel" style="margin-bottom:24px;">
         <div class="rt-header">
-          <h2 data-i18n="ov.params.title">Operating parameters</h2>
-          <span id="ov-updated" class="rt-meta hint"></span>
-        </div>
-        <div id="ov-params" class="ov-cards"><p class="no-data hint" data-i18n="runtime.loading">Loading…</p></div>
-      </div>
-
-      <div class="panel">
-        <div class="rt-header">
           <h2 data-i18n="ov.live.title">Live data</h2>
           <span id="ov-live-count" class="hint"></span>
-          <button id="ov-picker-btn" style="width:auto;padding:6px 14px;margin-left:auto;" data-i18n="ov.pick.open">Select values</button>
+          <span id="ov-updated" class="rt-meta hint"></span>
+          <button id="ov-picker-btn" style="width:auto;padding:6px 14px;" data-i18n="ov.pick.open">Select values</button>
         </div>
         <div id="ov-live" class="ov-tiles"></div>
         <p id="ov-live-empty" class="hint" data-i18n="ov.live.empty" hidden>No values selected yet — use “Select values”.</p>
+      </div>
+
+      <div class="panel">
+        <h2 data-i18n="ov.params.title">Operating parameters</h2>
+        <p class="ov-sub" data-i18n="ov.params.sub">Current state of runtime, interfaces and controller.</p>
+        <div id="ov-params" class="ov-cards"><p class="no-data hint" data-i18n="runtime.loading">Loading…</p></div>
       </div>
 
       <div class="panel" id="ov-picker" style="margin-top:24px;" hidden>
@@ -3349,6 +3417,28 @@
             ['ov.p.failsafe', ovZahl(emCfg.failsafeSollwertKw) + ' kW'],
           ]));
         }
+        // Status-Chips in der Kopfzeile: der Zustand der Anlage auf einen Blick, in jeder Ansicht
+        // sichtbar — nicht nur auf der Übersicht.
+        const chips = [];
+        const chip = (klasse, text) => `<span class="chip ${klasse}">${esc(text)}</span>`;
+        if (rt) chips.push(chip(rt.running ? 'ok' : 'bad',
+          `${t('ov.card.runtime')}: ${rt.running ? t('runtime.running') : t('runtime.stopped')}`));
+        if (em) {
+          chips.push(chip(em.aktuierungAktiv ? 'ok' : 'warn',
+            `${t('ov.p.aktuierung')}: ${em.aktuierungAktiv ? t('ov.yes') : t('ov.no')}`));
+          chips.push(chip(em.drosselAktiv ? 'warn' : 'ok',
+            `${t('ov.p.drossel')}: ${em.drosselAktiv ? t('ov.yes') : t('ov.no')}`));
+          if (em.schreibFehler && em.schreibFehler.length) chips.push(chip('bad', t('ov.p.writeErrors')));
+        }
+        if (net) chips.push(chip(net.vpnInterface ? 'ok' : 'bad',
+          `${t('ov.p.tunnel')}: ${net.vpnInterface || t('ov.p.noTunnel')}`));
+        if (bridgeStatus && bridgeStatus.server) {
+          const n = bridgeStatus.server.clientCount || 0;
+          chips.push(chip(n > 0 ? 'ok' : 'warn', `${t('ov.p.clients')}: ${n}`));
+        }
+        if (mqtt) chips.push(chip(mqtt.status === 'connected' ? 'ok' : 'warn', `MQTT: ${mqtt.status}`));
+        document.getElementById('status-chips').innerHTML = chips.join('');
+
         document.getElementById('ov-params').innerHTML = karten.join('');
         document.getElementById('ov-updated').textContent = t('ov.updated') + ' ' + new Date().toLocaleTimeString();
 
@@ -3498,9 +3588,15 @@
       loadDashboard()
         .then(() => { showView(DASHBOARD.startAnsicht || 'uebersicht'); })
         .catch(() => showView('uebersicht'));
+      // Alle 5 s aktualisieren, solange die Übersicht sichtbar ist; sonst seltener, damit die
+      // Status-Chips in der Kopfzeile auch in den anderen Ansichten nicht veralten.
       setInterval(() => {
-        if (!document.getElementById('view-uebersicht').hidden) refreshOverview().catch(() => {});
+        const sichtbar = !document.getElementById('view-uebersicht').hidden;
+        if (sichtbar) refreshOverview().catch(() => {});
       }, 5000);
+      setInterval(() => {
+        if (document.getElementById('view-uebersicht').hidden) refreshOverview().catch(() => {});
+      }, 20000);
     </script>
   </body>
 </html>
