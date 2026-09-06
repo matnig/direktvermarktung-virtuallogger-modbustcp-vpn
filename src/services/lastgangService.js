@@ -10,7 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const { DATA_DIR } = require('../config/appConfig');
-const { readCollection, writeCollection } = require('../persistence/jsonStore');
+const { readCollection, updateCollection } = require('../persistence/jsonStore');
 
 const COLLECTION = 'lastgaenge';
 const DIR = path.join(DATA_DIR, 'lastgaenge');
@@ -133,13 +133,15 @@ function importieren({ name, csv }) {
     tage: Number((geparst.punkte.length * geparst.messperiodeMin / 1440).toFixed(1)),
     importiertAm: new Date().toISOString(),
   };
-  writeCollection(COLLECTION, [...list(), meta]);
+  // Atomar anhaengen statt Liste lesen und zurueckschreiben: zwei kurz aufeinander
+  // folgende Importe (etwa aus der Oberflaeche und ueber die API) haben sich sonst
+  // gegenseitig ueberschrieben — genau das ist am 06.09. passiert.
+  updateCollection(COLLECTION, [], (aktuell) => [...aktuell, meta]);
   return meta;
 }
 
 function loeschen(id) {
-  const rest = list().filter((m) => m.id !== id);
-  writeCollection(COLLECTION, rest);
+  updateCollection(COLLECTION, [], (aktuell) => aktuell.filter((m) => m.id !== id));
   try { fs.unlinkSync(datei(id)); } catch { /* schon weg */ }
   return true;
 }
