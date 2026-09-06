@@ -339,6 +339,7 @@ function clearDiscovery() {
 }
 
 module.exports = {
+  buildDiscoveryPayload,   // exportiert fuer Tests
   publishDiscovery,
   publishSingleDiscovery,
   removeSingleDiscovery,
