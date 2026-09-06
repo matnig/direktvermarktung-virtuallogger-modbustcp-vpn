@@ -37,6 +37,14 @@ router.get('/', (req, res) => {
   }));
 });
 
+// DELETE /api/history?kind=&id=  — Verlauf einer Reihe verwerfen
+router.delete('/', (req, res) => {
+  const { kind, id } = req.query;
+  if (!kind || !id) return res.status(400).json({ error: 'kind and id are required' });
+  const ok = historyService.clearSeries(String(kind), String(id));
+  res.json({ geloescht: ok, kind, id });
+});
+
 // POST /api/history/flush — Puffer sofort schreiben (für Tests/Wartung)
 router.post('/flush', (req, res) => {
   historyService.flush();

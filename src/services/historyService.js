@@ -202,6 +202,15 @@ function query({ kind, id, vonMs, bisMs, maxPunkte = 400 }) {
   };
 }
 
+// Verlauf einer Reihe verwerfen — Speicher und Datei. Braucht man, wenn Punkte
+// aufgezeichnet wurden, die nicht zur Anlage gehören (z. B. aus einem Testlauf).
+function clearSeries(kind, id) {
+  const key = schluessel(kind, id);
+  reihen.delete(key);
+  try { fs.unlinkSync(dateiname(key)); return true; }
+  catch (e) { return e.code === 'ENOENT'; }
+}
+
 function listSeries() {
   const aktiv = aktiveReihen().map((i) => schluessel(i.kind, i.id));
   const bekannt = new Set(aktiv);
@@ -244,5 +253,5 @@ function restart() { start(); }
 
 module.exports = {
   COLLECTION, createDefaultConfig, getConfig, updateConfig,
-  start, stop, restart, flush, tick, query, listSeries, leseWert, buendeln,
+  start, stop, restart, flush, tick, query, listSeries, clearSeries, leseWert, buendeln,
 };
