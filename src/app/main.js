@@ -20,6 +20,8 @@ const controlService                = require('../services/controlService');
 const calibrationSamplerService     = require('../services/calibrationSamplerService');
 const dashboardService              = require('../services/dashboardService');
 const historyService                = require('../services/historyService');
+const wirtschaftlichkeitService     = require('../services/wirtschaftlichkeitService');
+const lastgangService               = require('../services/lastgangService');
 
 initializeCollections([
   { name: 'sources',    fallback: [] },
@@ -29,6 +31,9 @@ initializeCollections([
     fallback: [dashboardService.createDefaultConfig()] },
   { name: historyService.COLLECTION,
     fallback: [historyService.createDefaultConfig()] },
+  { name: wirtschaftlichkeitService.COLLECTION,
+    fallback: [wirtschaftlichkeitService.createDefaultConfig()] },
+  { name: lastgangService.COLLECTION, fallback: [] },
   { name: settingsService.COLLECTION,         fallback: [settingsService.createDefaultSettings()] },
   { name: vpnService.VPN_COLLECTION,          fallback: [vpnService.createDefaultConfig()] },
   { name: vpnService.VPN_SECRETS_COLLECTION,  fallback: [vpnService.createDefaultSecrets()] },

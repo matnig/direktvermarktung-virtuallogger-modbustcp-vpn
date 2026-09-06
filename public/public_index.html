@@ -276,6 +276,7 @@
       <button class="nav-btn" data-view="watchdogs" data-i18n="nav.watchdogs">Watchdogs</button>
       <button class="nav-btn" data-view="mqtt" data-i18n="nav.mqtt">MQTT</button>
       <button class="nav-btn" data-view="einspeisemanagement" data-i18n="nav.em">Feed-in management</button>
+      <button class="nav-btn" data-view="wirtschaftlichkeit" data-i18n="nav.wirtschaft">Economics</button>
       <button class="nav-btn" data-view="bridge" data-i18n="nav.bridge">Bridge server</button>
       <button class="nav-btn" data-view="netzwerk" data-i18n="nav.netzwerk">Network &amp; VPN</button>
       <button class="nav-btn" data-view="testmodus" data-i18n="nav.testmodus">Test mode</button>
@@ -329,6 +330,90 @@
           <button id="ov-picker-close" style="background:#fff;" data-i18n="ov.pick.close">Close</button>
           <span id="ov-picker-status" class="hint"></span>
         </div>
+      </div>
+    </div>
+
+    <!-- ── Wirtschaftlichkeit ──────────────────────────────────────── -->
+    <div class="view" id="view-wirtschaftlichkeit" hidden>
+      <div class="panel" style="margin-bottom:24px;">
+        <h2 data-i18n="wi.lastgang.title">Load profiles</h2>
+        <p class="ov-sub" data-i18n="wi.lastgang.hint">Import the grid operator's time series (CSV, 15-minute values). Import and export at the grid connection point are detected from the OBIS codes in the header.</p>
+        <div class="toolbar">
+          <label style="width:auto;margin:0;">
+            <span id="wi-import-label" style="padding:7px 14px;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:6px;cursor:pointer;display:inline-block;font-weight:600;" data-i18n="wi.import">Import CSV</span>
+            <input type="file" id="wi-import-file" accept=".csv,text/csv" style="display:none" />
+          </label>
+          <span id="wi-import-status" class="hint"></span>
+        </div>
+        <div id="wi-lastgaenge"></div>
+      </div>
+
+      <div class="grid" style="margin-bottom:24px;">
+        <form id="wi-form">
+          <h2 data-i18n="wi.param.title">Parameters</h2>
+          <label><span data-i18n="wi.lastgangWahl">Load profile used</span><select name="lastgangId" id="wi-lastgang-select"></select></label>
+
+          <h3 style="margin-top:16px;" data-i18n="wi.gruppe.preise">Prices</h3>
+          <div class="row">
+            <label><span data-i18n="wi.bezugspreis">Grid purchase price (€/kWh)</span><input type="number" step="0.001" name="bezugspreisEurProKwh" /></label>
+            <label><span data-i18n="wi.ertragKunde">Revenue direct to customer (€/kWh)</span><input type="number" step="0.001" name="ertragDirektKundeEurProKwh" /></label>
+          </div>
+          <div class="row">
+            <label><span data-i18n="wi.ertragDv">Revenue direct marketing (€/kWh)</span><input type="number" step="0.001" name="ertragDirektvermarktungEurProKwh" /></label>
+            <label><span data-i18n="wi.anteilKunde">Share sold to customer (%)</span><input type="number" step="1" name="anteilDirektKundeProzent" /></label>
+          </div>
+
+          <h3 style="margin-top:16px;" data-i18n="wi.gruppe.akku">Battery</h3>
+          <div class="row">
+            <label><span data-i18n="wi.akkuBestand">Existing usable (kWh)</span><input type="number" step="1" name="akkuBestandKwh" /></label>
+            <label><span data-i18n="wi.akkuVerkauf">Resale of existing (€)</span><input type="number" step="100" name="akkuVerkaufserloesEur" /></label>
+          </div>
+          <div class="row">
+            <label><span data-i18n="wi.akkuNeu">New battery (kWh)</span><input type="number" step="5" name="akkuNeuKwh" /></label>
+            <label><span data-i18n="wi.akkuNeuKw">New battery power (kW)</span><input type="number" step="5" name="akkuNeuLeistungKw" /></label>
+          </div>
+          <div class="row">
+            <label><span data-i18n="wi.akkuPreis">Cost (€/kWh)</span><input type="number" step="10" name="akkuNeuKostenEurProKwh" /></label>
+            <label><span data-i18n="wi.akkuEta">Round-trip efficiency</span><input type="number" step="0.01" name="akkuWirkungsgrad" /></label>
+          </div>
+
+          <h3 style="margin-top:16px;" data-i18n="wi.gruppe.pv">PV expansion</h3>
+          <div class="row">
+            <label><span data-i18n="wi.pvErw">Additional (kWp)</span><input type="number" step="1" name="pvErweiterungKwp" /></label>
+            <label><span data-i18n="wi.pvPreis">Cost (€/kWp)</span><input type="number" step="10" name="pvKostenEurProKwp" /></label>
+          </div>
+          <label><span data-i18n="wi.pvErtrag">Specific yield (kWh/kWp·a)</span><input type="number" step="10" name="spezifischerErtragKwhProKwp" /></label>
+
+          <h3 style="margin-top:16px;" data-i18n="wi.gruppe.rahmen">Framework</h3>
+          <div class="row">
+            <label><span data-i18n="wi.sonstige">Other costs (€)</span><input type="number" step="100" name="sonstigeKostenEur" /></label>
+            <label><span data-i18n="wi.betriebskosten">Operating costs (%/a)</span><input type="number" step="0.1" name="betriebskostenProzentProJahr" /></label>
+          </div>
+          <div class="row">
+            <label><span data-i18n="wi.jahre">Period (years)</span><input type="number" step="1" name="betrachtungsjahreJahre" /></label>
+            <label><span data-i18n="wi.zins">Discount rate (%)</span><input type="number" step="0.1" name="kalkulationszinsProzent" /></label>
+          </div>
+          <div class="toolbar" style="margin-top:16px;">
+            <button type="submit" data-i18n="wi.rechnen">Calculate</button>
+            <button type="button" id="wi-save" style="background:#fff;color:var(--text);border-color:var(--line);" data-i18n="wi.speichern">Save parameters</button>
+            <span id="wi-status" class="hint"></span>
+          </div>
+        </form>
+
+        <div class="panel">
+          <h2 data-i18n="wi.ergebnis.title">Result</h2>
+          <div id="wi-ergebnis"><p class="hint" data-i18n="wi.ergebnis.leer">Import a load profile and press “Calculate”.</p></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2 data-i18n="wi.vergleich.title">Battery size comparison</h2>
+        <p class="ov-sub" data-i18n="wi.vergleich.hint">Same prices, varying capacity — shows where additional capacity stops paying off.</p>
+        <div class="toolbar">
+          <button id="wi-vergleich-btn" style="width:auto;" data-i18n="wi.vergleich.rechnen">Calculate comparison</button>
+          <span id="wi-vergleich-status" class="hint"></span>
+        </div>
+        <div class="chart-wrap"><div id="wi-vergleich"></div></div>
       </div>
     </div>
 
@@ -1270,6 +1355,11 @@
         // Übersicht und Picker werden zur Laufzeit aus t() aufgebaut -> neu rendern,
         // sonst bleiben Kartentitel und Kachelnamen in der alten Sprache stehen.
         if (typeof refreshOverview === 'function') refreshOverview().catch(() => {});
+        // Die Lastgang-Tabelle wird zur Laufzeit gebaut (inkl. Zahlenformat) -> neu rendern
+        if (typeof wiLadeLastgaenge === 'function') {
+          const sel = document.getElementById('wi-lastgang-select');
+          wiLadeLastgaenge(sel ? sel.value : undefined).catch(() => {});
+        }
       }
 
       // ── DOM refs ──────────────────────────────────────────────────
@@ -3285,12 +3375,14 @@
 
       const VIEWS = [
         'uebersicht', 'runtime', 'quellen', 'extreg', 'mappings', 'variablen', 'watchdogs',
-        'mqtt', 'einspeisemanagement', 'bridge', 'netzwerk', 'testmodus', 'update', 'debug',
+        'mqtt', 'einspeisemanagement', 'wirtschaftlichkeit', 'bridge', 'netzwerk',
+        'testmodus', 'update', 'debug',
       ];
       const VIEW_LABEL_KEY = {
         uebersicht: 'nav.uebersicht', runtime: 'nav.runtime', quellen: 'nav.quellen',
         extreg: 'nav.extreg', mappings: 'nav.mappings', variablen: 'nav.variablen',
         watchdogs: 'nav.watchdogs', mqtt: 'nav.mqtt', einspeisemanagement: 'nav.em',
+        wirtschaftlichkeit: 'nav.wirtschaft',
         bridge: 'nav.bridge', netzwerk: 'nav.netzwerk', testmodus: 'nav.testmodus',
         update: 'nav.update', debug: 'nav.debug',
       };
@@ -3719,6 +3811,170 @@
       });
       document.getElementById('ov-chart-close').addEventListener('click', chartSchliessen);
 
+
+      // ── Wirtschaftlichkeit ────────────────────────────────────────
+      const WI_FELDER = [
+        'bezugspreisEurProKwh', 'ertragDirektKundeEurProKwh', 'ertragDirektvermarktungEurProKwh',
+        'anteilDirektKundeProzent', 'akkuBestandKwh', 'akkuVerkaufserloesEur', 'akkuNeuKwh',
+        'akkuNeuLeistungKw', 'akkuNeuKostenEurProKwh', 'akkuWirkungsgrad', 'pvErweiterungKwp',
+        'pvKostenEurProKwp', 'spezifischerErtragKwhProKwp', 'sonstigeKostenEur',
+        'betriebskostenProzentProJahr', 'betrachtungsjahreJahre', 'kalkulationszinsProzent',
+      ];
+
+      const eur = (v) => (v == null || !Number.isFinite(v)) ? '—'
+        : v.toLocaleString(currentLang === 'de' ? 'de-DE' : 'en-GB', { maximumFractionDigits: 0 }) + ' €';
+      const kwh = (v) => (v == null || !Number.isFinite(v)) ? '—'
+        : v.toLocaleString(currentLang === 'de' ? 'de-DE' : 'en-GB', { maximumFractionDigits: 0 }) + ' kWh';
+
+      function wiSammle() {
+        const f = document.getElementById('wi-form');
+        const out = { lastgangId: f.elements['lastgangId'].value || null };
+        WI_FELDER.forEach((k) => {
+          const v = Number(f.elements[k].value);
+          if (Number.isFinite(v)) out[k] = v;
+        });
+        return out;
+      }
+
+      async function wiLadeConfig() {
+        try {
+          const cfg = await fetchJson('/api/wirtschaftlichkeit/config');
+          const f = document.getElementById('wi-form');
+          WI_FELDER.forEach((k) => { if (f.elements[k]) f.elements[k].value = cfg[k]; });
+          await wiLadeLastgaenge(cfg.lastgangId);
+        } catch (err) { setDebug(err); }
+      }
+
+      async function wiLadeLastgaenge(auswahl) {
+        const { lastgaenge } = await fetchJson('/api/wirtschaftlichkeit/lastgaenge');
+        const sel = document.getElementById('wi-lastgang-select');
+        sel.innerHTML = lastgaenge.map((l) =>
+          `<option value="${esc(l.id)}"${l.id === auswahl ? ' selected' : ''}>${esc(l.name)}</option>`).join('')
+          || `<option value="">—</option>`;
+        document.getElementById('wi-lastgaenge').innerHTML = lastgaenge.length
+          ? `<table class="rt-table"><thead><tr>
+              <th>${esc(t('wi.t.name'))}</th><th>${esc(t('wi.t.zeitraum'))}</th><th>${esc(t('wi.t.tage'))}</th>
+              <th>${esc(t('wi.t.bezug'))}</th><th>${esc(t('wi.t.einspeisung'))}</th><th></th></tr></thead><tbody>`
+            + lastgaenge.map((l) => `<tr>
+                <td>${esc(l.name)}</td>
+                <td>${esc(l.von.slice(0, 10))} – ${esc(l.bis.slice(0, 10))}</td>
+                <td>${esc(l.tage)}</td>
+                <td>${esc(kwh(l.summeBezugKwh))}</td>
+                <td>${esc(kwh(l.summeEinspeisungKwh))}</td>
+                <td><button type="button" class="wi-del" data-id="${esc(l.id)}"
+                     style="width:auto;padding:3px 10px;font-size:12px;background:#fff;color:var(--err);border-color:var(--line);">
+                     ${esc(t('wi.loeschen'))}</button></td></tr>`).join('')
+            + '</tbody></table>'
+          : `<p class="hint">${esc(t('wi.keineLastgaenge'))}</p>`;
+      }
+
+      function wiZeigeErgebnis(d) {
+        const host = document.getElementById('wi-ergebnis');
+        if (d.fehler) { host.innerHTML = `<p class="hint">${esc(d.fehler)}</p>`; return; }
+        const e = d.energie, w = d.wirtschaft;
+        const jf = d.jahresfaktor;
+        const z = (k, v) => `<div class="ov-row"><span>${esc(t(k))}</span><span>${esc(v)}</span></div>`;
+        host.innerHTML = `
+          <div class="ov-card" style="margin-bottom:12px;">
+            <h3>${esc(t('wi.e.energie'))}</h3>
+            ${z('wi.e.zusatz', kwh(d.zusatzKapazitaetKwh))}
+            ${z('wi.e.verschoben', kwh(e.verschobenKwh * jf) + ' /a')}
+            ${z('wi.e.bezug', kwh(e.bezugAltKwh * jf) + ' → ' + kwh(e.bezugNeuKwh * jf))}
+            ${z('wi.e.einspeisung', kwh(e.einspeisungAltKwh * jf) + ' → ' + kwh(e.einspeisungNeuKwh * jf))}
+            ${z('wi.e.zyklen', (e.vollzyklen * jf).toFixed(0) + ' /a')}
+          </div>
+          <div class="ov-card">
+            <h3>${esc(t('wi.e.geld'))}</h3>
+            ${z('wi.e.investBrutto', eur(w.investBruttoEur))}
+            ${z('wi.e.verkauf', '− ' + eur(d.konfiguration.akkuVerkaufserloesEur))}
+            ${z('wi.e.investNetto', eur(w.investNettoEur))}
+            ${z('wi.e.jahresertrag', eur(w.jahresertragEur))}
+            ${z('wi.e.betrieb', '− ' + eur(w.betriebskostenEur))}
+            ${z('wi.e.netto', eur(w.nettoJahresErgebnisEur))}
+            ${z('wi.e.amortisation', w.amortisationJahre == null ? t('wi.e.nie') : w.amortisationJahre.toFixed(1) + ' a')}
+            ${z('wi.e.barwert', eur(w.barwertEur))}
+          </div>
+          ${(d.annahmen || []).map((a) => `<p class="hint" style="margin-top:10px;">⚠ ${esc(a)}</p>`).join('')}`;
+      }
+
+      document.getElementById('wi-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const st = document.getElementById('wi-status');
+        try {
+          st.textContent = '…';
+          wiZeigeErgebnis(await fetchJson('/api/wirtschaftlichkeit/rechnen', {
+            method: 'POST', body: JSON.stringify(wiSammle()),
+          }));
+          st.textContent = '';
+        } catch (err) { st.textContent = (err && err.error) || String(err); setDebug(err); }
+      });
+
+      document.getElementById('wi-save').addEventListener('click', async () => {
+        const st = document.getElementById('wi-status');
+        try {
+          await fetchJson('/api/wirtschaftlichkeit/config', { method: 'PUT', body: JSON.stringify(wiSammle()) });
+          st.textContent = t('ov.pick.saved');
+          setTimeout(() => { st.textContent = ''; }, 3000);
+        } catch (err) { st.textContent = (err && err.error) || String(err); }
+      });
+
+      document.getElementById('wi-import-file').addEventListener('change', async (e) => {
+        const datei = e.target.files && e.target.files[0];
+        if (!datei) return;
+        const st = document.getElementById('wi-import-status');
+        try {
+          st.textContent = t('wi.importLaeuft');
+          const csv = await datei.text();
+          const meta = await fetchJson('/api/wirtschaftlichkeit/lastgaenge', {
+            method: 'POST', body: JSON.stringify({ name: datei.name.replace(/\.csv$/i, ''), csv }),
+          });
+          st.textContent = `${meta.name}: ${meta.anzahlPunkte} ${t('wi.punkte')}`;
+          if (!meta.rollenErkannt) st.textContent += ' — ' + t('wi.rollenRaten');
+          await wiLadeLastgaenge(meta.id);
+        } catch (err) {
+          st.textContent = (err && err.error) || String(err);
+        } finally { e.target.value = ''; }
+      });
+
+      document.getElementById('wi-lastgaenge').addEventListener('click', async (e) => {
+        const b = e.target.closest('.wi-del');
+        if (!b) return;
+        try {
+          await fetchJson('/api/wirtschaftlichkeit/lastgaenge/loeschen', {
+            method: 'POST', body: JSON.stringify({ id: b.dataset.id }),
+          });
+          await wiLadeLastgaenge();
+        } catch (err) { setDebug(err); }
+      });
+
+      document.getElementById('wi-vergleich-btn').addEventListener('click', async () => {
+        const st = document.getElementById('wi-vergleich-status');
+        try {
+          st.textContent = '…';
+          const { varianten } = await fetchJson('/api/wirtschaftlichkeit/vergleich', {
+            method: 'POST', body: JSON.stringify(wiSammle()),
+          });
+          const best = varianten.filter((v) => Number.isFinite(v.barwertEur))
+            .reduce((a, b) => (b.barwertEur > (a ? a.barwertEur : -Infinity) ? b : a), null);
+          document.getElementById('wi-vergleich').innerHTML =
+            `<table class="rt-table"><thead><tr>
+              <th>${esc(t('wi.v.groesse'))}</th><th>${esc(t('wi.v.verschoben'))}</th>
+              <th>${esc(t('wi.v.zyklen'))}</th><th>${esc(t('wi.v.invest'))}</th>
+              <th>${esc(t('wi.v.netto'))}</th><th>${esc(t('wi.v.amort'))}</th>
+              <th>${esc(t('wi.v.barwert'))}</th></tr></thead><tbody>`
+            + varianten.map((v) => `<tr${best && v.akkuNeuKwh === best.akkuNeuKwh ? ' style="background:#eaf1fe;font-weight:600;"' : ''}>
+                <td>${esc(v.akkuNeuKwh)} kWh</td>
+                <td>${esc(kwh(v.verschobenKwhProJahr))}</td>
+                <td>${esc(v.vollzyklenProJahr == null ? '—' : v.vollzyklenProJahr.toFixed(0))}</td>
+                <td>${esc(eur(v.investNettoEur))}</td>
+                <td>${esc(eur(v.nettoJahresErgebnisEur))}</td>
+                <td>${esc(v.amortisationJahre == null ? t('wi.e.nie') : v.amortisationJahre.toFixed(1) + ' a')}</td>
+                <td>${esc(eur(v.barwertEur))}</td></tr>`).join('')
+            + '</tbody></table>';
+          st.textContent = '';
+        } catch (err) { st.textContent = (err && err.error) || String(err); setDebug(err); }
+      });
+
       document.getElementById('main-nav').addEventListener('click', (e) => {
         const btn = e.target.closest('.nav-btn');
         if (btn) showView(btn.dataset.view);
@@ -3750,6 +4006,7 @@
           .then(renderEmStatus).catch(() => {});
       }, 5000);
 
+      wiLadeConfig().catch(() => {});
       loadDashboard()
         .then(() => { showView(DASHBOARD.startAnsicht || 'uebersicht'); })
         .catch(() => showView('uebersicht'));

@@ -37,13 +37,21 @@ router.get('/', (req, res) => {
   }));
 });
 
-// DELETE /api/history?kind=&id=  — Verlauf einer Reihe verwerfen
-router.delete('/', (req, res) => {
-  const { kind, id } = req.query;
+// Verlauf einer Reihe verwerfen.
+//
+// Als POST /api/history/clear, NICHT als DELETE: auf dem Weg zur Anlage sitzt
+// offenbar eine Filterung, die nach einer DELETE-Anfrage die Quell-IP fuer Port 3000
+// minutenlang sperrt (dreimal reproduziert; PUT und POST auf denselben Server
+// blieben unauffaellig). DELETE bleibt als Alias erhalten, wo es funktioniert.
+function clearHandler(req, res) {
+  const kind = req.query.kind || (req.body || {}).kind;
+  const id = req.query.id || (req.body || {}).id;
   if (!kind || !id) return res.status(400).json({ error: 'kind and id are required' });
   const ok = historyService.clearSeries(String(kind), String(id));
   res.json({ geloescht: ok, kind, id });
-});
+}
+router.post('/clear', clearHandler);
+router.delete('/', clearHandler);
 
 // POST /api/history/flush — Puffer sofort schreiben (für Tests/Wartung)
 router.post('/flush', (req, res) => {

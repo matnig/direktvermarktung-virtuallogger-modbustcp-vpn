@@ -6,7 +6,10 @@ const errorHandler = require('../middleware/errorHandler');
 function createApp() {
   const app = express();
 
-  app.use(express.json());
+  // 25 MB: Lastgang-CSVs des Netzbetreibers sind mit 15-Minuten-Werten je Jahr rund 1-2 MB,
+  // der Standardwert von 100 kB reicht dafuer nicht.
+  app.use(express.json({ limit: '25mb' }));
+  app.use(express.text({ limit: '25mb', type: 'text/csv' }));
   app.use(express.static(path.join(process.cwd(), 'public')));
 
   app.get('/', (req, res) => {
