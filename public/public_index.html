@@ -895,6 +895,15 @@
             <label><span data-i18n="em.verstaerkung">Gain</span><input type="number" step="0.1" name="reglerVerstaerkung" /></label>
             <label><span data-i18n="em.maxSchritt">Max step (kW)</span><input type="number" step="0.1" name="maxSchrittKw" /></label>
           </div>
+          <label style="display:flex;align-items:center;gap:8px;">
+            <input type="checkbox" name="sollwertGrenzeAusDargebot" style="width:auto;margin:0;" />
+            <span data-i18n="em.sollwertGrenze">Cap setpoint at available yield</span>
+          </label>
+          <div class="row">
+            <label><span data-i18n="em.dargebotReserveProzent">Yield margin (%)</span><input type="number" step="1" name="dargebotReserveProzent" /></label>
+            <label><span data-i18n="em.dargebotReserveKw">Yield margin (kW)</span><input type="number" step="0.5" name="dargebotReserveKw" /></label>
+          </div>
+          <p class="hint" data-i18n="em.sollwertGrenzeHint">Without this the setpoint winds up to its maximum whenever nothing is exported, even under heavy cloud. When the sun returns the inverter then ramps up unchecked, overshoots the limit and has to be throttled back hard — the cycling this avoids. The cap follows the irradiance-based yield plus the margins and never sits below the current production plus margin, so it can never take power away itself.</p>
           <label><span data-i18n="em.failsafe">Failsafe setpoint (kW)</span><input type="number" step="0.1" name="failsafeSollwertKw" /></label>
           <label style="display:flex;align-items:center;gap:8px;">
             <input type="checkbox" name="akkuVorsteuerung" style="width:auto;margin:0;" />
@@ -2682,6 +2691,7 @@
         'akkuReserveFaktor', 'ueberschussToleranzMs',
         'akkuReaktionszeitMs', 'akkuMindestLadeleistungKw', 'akkuSperreWiederholungMs',
         'akkuRestdauerSchwelleS', 'akkuRestdauerUebergangS',
+        'dargebotReserveProzent', 'dargebotReserveKw',
       ];
 
       function emFmtKw(v) {
@@ -2727,18 +2737,16 @@
         document.getElementById('em-st-pkann-wwn').textContent = emFmtKw(st.pKannKw);
         document.getElementById('em-st-prod').textContent = emFmtKw(st.pIstKw);
         const wr = document.getElementById('em-st-wr');
-        wr.textContent = emFmtKw(st.wrSollwertKw) + (st.regler && st.regler.grund ? ` · ${st.regler.grund}` : '');
+        wr.textContent = emFmtKw(st.wrSollwertKw)
+          + (st.sollwertObergrenzeKw == null ? '' : ` / max ${emFmtKw(st.sollwertObergrenzeKw)}`)
+          + (st.regler && st.regler.grund ? ` · ${st.regler.grund}` : '');
         const a = st.akku || {};
-        // Richtung ausschreiben: ein nacktes "0.0 kW" bei entladendem Akku ist irrefuehrend
-        let akkuLeistung = '';
-        if (a.wirkleistungKw != null) {
-          const w = a.wirkleistungKw;
-          if (w > 0.05)       akkuLeistung = ` · ${t('em.akkuLaedt')} ${emFmtKw(w)}`;
-          else if (w < -0.05) akkuLeistung = ` · ${t('em.akkuEntlaedt')} ${emFmtKw(-w)}`;
-          else                akkuLeistung = ` · ${t('em.akkuIdle')}`;
-        }
-        document.getElementById('em-st-akku').textContent =
-          (a.socProzent == null ? '—' : `SoC ${a.socProzent}%`) + akkuLeistung;
+        // Beide Richtungen immer ausweisen — ein nacktes "0.0 kW" bei entladendem Akku
+        // sagt nicht, ob der Speicher steht oder gerade die Hauslast traegt.
+        const akkuTeile = [a.socProzent == null ? '—' : `SoC ${a.socProzent}%`];
+        if (a.ladeleistungKw != null)    akkuTeile.push(`${t('em.akkuLaden')} ${emFmtKw(a.ladeleistungKw)}`);
+        if (a.entladeleistungKw != null) akkuTeile.push(`${t('em.akkuEntladen')} ${emFmtKw(a.entladeleistungKw)}`);
+        document.getElementById('em-st-akku').textContent = akkuTeile.join(' · ');
         const miss = document.getElementById('em-st-missing');
         miss.textContent = (st.inputsFehlen && st.inputsFehlen.length)
           ? `${t('em.inputsMissing')}: ${st.inputsFehlen.join(', ')}` : '';
@@ -2764,6 +2772,7 @@
             if (form.elements[f]) form.elements[f].value = cfg[f] ?? '';
           }
           form.elements['akkuVorsteuerung'].checked = !!cfg.akkuVorsteuerung;
+          form.elements['sollwertGrenzeAusDargebot'].checked = cfg.sollwertGrenzeAusDargebot !== false;
           form.elements['aktuierungAktiv'].checked = !!cfg.aktuierungAktiv;
 
           // Bindings-Selects füllen
@@ -2804,6 +2813,7 @@
           if (raw !== '') payload[f] = parseFloat(raw);
         }
         payload.akkuVorsteuerung = form.elements['akkuVorsteuerung'].checked;
+        payload.sollwertGrenzeAusDargebot = form.elements['sollwertGrenzeAusDargebot'].checked;
         payload.aktuierungAktiv = form.elements['aktuierungAktiv'].checked;
         try {
           await fetchJson('/api/einspeisemanagement', { method: 'PUT', body: JSON.stringify(payload) });

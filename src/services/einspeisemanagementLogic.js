@@ -260,6 +260,32 @@ function effektiveEinspeisungKw(napEinspeisungKw, akku, config, opts) {
   return napEinspeisungKw - f * puffer + (1 - f) * vorsteuerung;
 }
 
+// --- 3c) Obergrenze des WR-Sollwerts aus dem Dargebot ---
+// Ohne diese Grenze laeuft der Sollwert bei jedem "lockern" bis wrSollwertMaxKw hoch, auch wenn
+// die Anlage bei bedecktem Himmel nur 18 kW hergibt. Steht er dann auf 125 kW und die Sonne kommt
+// zurueck, faehrt der Wechselrichter ungebremst hoch, der Netzknoten schiesst ueber das Limit und
+// der Regler muss hart zurueckdrosseln — genau das Takten, das wir vermeiden wollen.
+//
+// Die Grenze kommt aus dem STRAHLUNGSBASIERTEN Dargebot (nicht aus P_ist, das bei Drosselung ja
+// gerade nicht das Koennen abbildet), grosszuegig beaufschlagt, damit ein etwas zu niedrig
+// schaetzendes Modell nie selbst zur Drossel wird. Zusaetzlich liegt sie nie unter der aktuellen
+// Produktion plus Reserve: diese Begrenzung darf niemals aktiv Leistung wegnehmen.
+// Kein Dargebot (keine Strahlungswerte) => keine Grenze.
+function sollwertObergrenzeKw({ dargebotKw: dg, pIstKw }, config) {
+  const max = Number(config.wrSollwertMaxKw);
+  if (!config || config.sollwertGrenzeAusDargebot === false) return max;
+  if (!isNum(dg)) return max;
+
+  const prozent = Math.max(0, Number(config.dargebotReserveProzent) || 0);
+  const reserve = Math.max(0, Number(config.dargebotReserveKw) || 0);
+  let grenze = dg * (1 + prozent / 100) + reserve;
+
+  // Niemals unter die laufende Produktion (plus dieselbe Reserve) gehen
+  if (isNum(pIstKw)) grenze = Math.max(grenze, pIstKw * (1 + prozent / 100) + reserve);
+
+  return clamp(grenze, Number(config.wrSollwertMinKw) || 0, max);
+}
+
 // --- 4) Ein Regelschritt: neuer WR-Sollwert (Leistungsgrenze kW) ---
 // Gibt {wrSollwertKw, drosselAktiv, abweichungKw, effektiveEinspeisungKw, grund, ueberschussSeitMs}
 // zurück. pLimitKw === null => kein bekanntes Limit -> null (Caller entscheidet Failsafe).
@@ -270,7 +296,7 @@ function effektiveEinspeisungKw(napEinspeisungKw, akku, config, opts) {
 // binnen Sekunden selbst weg. Erst wenn der Überschuss länger steht, größer als die Akku-Ladegrenze
 // ist oder der Akku voll/nicht verfügbar ist, greift der Regler ein.
 // Zeitführung ist zustandslos: der Caller reicht jetztMs + den letzten ueberschussSeitMs herein.
-function reglerSchritt({ napEinspeisungKw, pLimitKw: limit, wrSollwertAktuellKw, akku, jetztMs, ueberschussSeitMs, akkuWache }, config) {
+function reglerSchritt({ napEinspeisungKw, pLimitKw: limit, wrSollwertAktuellKw, akku, jetztMs, ueberschussSeitMs, akkuWache, dargebotKw: dg, pIstKw }, config) {
   if (!isNum(limit)) {
     return {
       wrSollwertKw: null, drosselAktiv: false, abweichungKw: null,
@@ -323,7 +349,8 @@ function reglerSchritt({ napEinspeisungKw, pLimitKw: limit, wrSollwertAktuellKw,
 
   const maxSchritt = Number(config.maxSchrittKw) || Infinity;
   const delta = clamp(ziel - start, -maxSchritt, maxSchritt);          // Ratenbegrenzung
-  const wrSollwertKw = clamp(start + delta, config.wrSollwertMinKw, config.wrSollwertMaxKw);
+  const obergrenze = sollwertObergrenzeKw({ dargebotKw: dg, pIstKw }, config);
+  const wrSollwertKw = clamp(start + delta, config.wrSollwertMinKw, obergrenze);
 
   let grund;
   if (abweichung > totband) grund = toleriert ? 'Akku-Toleranz' : 'drosseln';
@@ -332,10 +359,14 @@ function reglerSchritt({ napEinspeisungKw, pLimitKw: limit, wrSollwertAktuellKw,
 
   return {
     wrSollwertKw,
-    drosselAktiv: wrSollwertKw < config.wrSollwertMaxKw - 1e-9,
+    // Gegen die EFFEKTIVE Obergrenze pruefen, nicht gegen wrSollwertMaxKw: die Dargebot-Grenze
+    // ist Anti-Windup, keine Drosselung. Sonst waere drosselAktiv dauerhaft true und P_kann
+    // wuerde faelschlich auf das Dargebot statt auf die gemessene Produktion umschalten.
+    drosselAktiv: wrSollwertKw < obergrenze - 1e-9,
     abweichungKw: abweichung,
     effektiveEinspeisungKw: effektiv,
     grund,
+    obergrenzeKw: obergrenze,
     ueberschussSeitMs: seit,
     akkuWache: wache.zustand,
     akkuSperre: wache.gesperrt ? { gesperrt: true, grund: wache.grund } : { gesperrt: false, grund: null },
@@ -373,6 +404,7 @@ module.exports = {
   akkuFreigabeFaktor,
   akkuRestdauerS,
   akkuBetriebsbereit,
+  sollwertObergrenzeKw,
   akkuAnnahmeWache,
   AKKU_WACHE_INIT,
   effektiveEinspeisungKw,

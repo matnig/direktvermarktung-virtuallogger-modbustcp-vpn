@@ -9,6 +9,7 @@ const {
   akkuFreigabeFaktor,
   akkuRestdauerS,
   akkuBetriebsbereit,
+  sollwertObergrenzeKw,
   akkuAnnahmeWache,
   reglerSchritt,
   dargebotKw,
@@ -447,4 +448,68 @@ test('voller Akku wird nicht faelschlich als "nimmt nicht an" gemeldet', () => {
   assert.strictEqual(akkuFreigabeFaktor(voll, c), 0);
   const v = laufen(c, () => voll, () => 57, 20, 125);
   assert.ok(v.every((x) => !x.gesperrt), 'keine Sperre erwartet, der Akku ist nur voll');
+});
+
+// --- Anti-Windup: Sollwert nicht ueber das Dargebot hinauslaufen lassen ---
+
+test('Obergrenze folgt dem Dargebot mit Zuschlag', () => {
+  const c = cfg(); // 15 % + 5 kW
+  assert.ok(Math.abs(sollwertObergrenzeKw({ dargebotKw: 20, pIstKw: 18 }, c) - 28) < 1e-9);
+});
+
+test('Obergrenze geht nie unter die laufende Produktion plus Reserve', () => {
+  const c = cfg();
+  // Dargebot schaetzt zu niedrig (Wolke ueber dem Fuehler), Anlage produziert real 60 kW
+  const g = sollwertObergrenzeKw({ dargebotKw: 10, pIstKw: 60 }, c);
+  assert.ok(g >= 60, `Begrenzung darf nie Leistung wegnehmen, war ${g}`);
+  assert.ok(Math.abs(g - 74) < 1e-9); // 60*1,15+5
+});
+
+test('ohne Strahlungswerte keine Obergrenze', () => {
+  const c = cfg();
+  assert.strictEqual(sollwertObergrenzeKw({ dargebotKw: null, pIstKw: 18 }, c), 125);
+});
+
+test('abschaltbar ueber die Config', () => {
+  const c = cfg({ sollwertGrenzeAusDargebot: false });
+  assert.strictEqual(sollwertObergrenzeKw({ dargebotKw: 20, pIstKw: 18 }, c), 125);
+});
+
+test('Feldfall 06.09.: Sollwert laeuft nicht mehr auf 125 kW hoch', () => {
+  const c = cfg();
+  // Bedeckt, Nulleinspeisung, Akku voll, Standort bezieht 10 kW -> Regler lockert dauerhaft
+  const akku = { verfuegbar: true, socProzent: 99, ladeleistungKw: 0, maxLadeleistungKw: 0,
+                 ladbareEnergieKwh: 0, systemmodus: 40, betriebszustand: 40 };
+  let soll = 20, seit = null, wache;
+  for (let i = 0; i < 60; i++) {
+    const r = reglerSchritt({
+      napEinspeisungKw: -10, pLimitKw: 0, wrSollwertAktuellKw: soll, akku,
+      jetztMs: (i + 1) * 1000, ueberschussSeitMs: seit, akkuWache: wache,
+      dargebotKw: 20, pIstKw: 18.3,
+    }, c);
+    soll = r.wrSollwertKw; seit = r.ueberschussSeitMs; wache = r.akkuWache;
+  }
+  assert.ok(Math.abs(soll - 28) < 1e-9, `erwartet 28 kW (Dargebot 20 +15 % +5), war ${soll}`);
+});
+
+test('Anti-Windup-Grenze zaehlt nicht als Drosselung', () => {
+  const c = cfg();
+  const akku = { verfuegbar: true, socProzent: 99, ladeleistungKw: 0, maxLadeleistungKw: 0, ladbareEnergieKwh: 0 };
+  const r = reglerSchritt({
+    napEinspeisungKw: -10, pLimitKw: 0, wrSollwertAktuellKw: 28, akku,
+    jetztMs: 1000, dargebotKw: 20, pIstKw: 18.3,
+  }, c);
+  assert.strictEqual(r.wrSollwertKw, 28); // will hoch, wird von der Obergrenze gehalten
+  assert.strictEqual(r.drosselAktiv, false); // sonst meldete P_kann faelschlich das Dargebot
+});
+
+test('echte Drosselung wird weiterhin als solche erkannt', () => {
+  const c = cfg();
+  const akku = { verfuegbar: true, socProzent: 99, ladeleistungKw: 0, maxLadeleistungKw: 0, ladbareEnergieKwh: 0 };
+  const r = reglerSchritt({
+    napEinspeisungKw: 30, pLimitKw: 0, wrSollwertAktuellKw: 28, akku,
+    jetztMs: 1000, dargebotKw: 20, pIstKw: 18.3,
+  }, c);
+  assert.ok(r.wrSollwertKw < 28);
+  assert.strictEqual(r.drosselAktiv, true);
 });

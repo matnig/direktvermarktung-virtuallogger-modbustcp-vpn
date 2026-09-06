@@ -27,6 +27,8 @@ function validateEinspeisemanagement(payload = {}) {
   numRange('reglerAbtastMs', 200, 60000);
   numRange('reglerVerstaerkung', 0, 100);
   numRange('maxSchrittKw', 0.1, 10000);
+  numRange('dargebotReserveProzent', 0, 1000);
+  numRange('dargebotReserveKw', 0, 10000);
   numRange('wrSollwertMaxKw', 0, 10000);
   numRange('wrSollwertMinKw', 0, 10000);
   numRange('failsafeSollwertKw', 0, 10000);
@@ -50,6 +52,9 @@ function validateEinspeisemanagement(payload = {}) {
 
   if (p.aktuierungAktiv !== undefined && typeof p.aktuierungAktiv !== 'boolean') {
     errors.push('aktuierungAktiv must be a boolean');
+  }
+  if (p.sollwertGrenzeAusDargebot !== undefined && typeof p.sollwertGrenzeAusDargebot !== 'boolean') {
+    errors.push('sollwertGrenzeAusDargebot must be a boolean');
   }
   if (p.akkuVorsteuerung !== undefined && typeof p.akkuVorsteuerung !== 'boolean') {
     errors.push('akkuVorsteuerung must be a boolean');

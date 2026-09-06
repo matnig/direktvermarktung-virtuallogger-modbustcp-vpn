@@ -53,7 +53,12 @@ class EinspeisemanagementConfig {
     akkuSperreWiederholungMs = 300000,   // Probe-Intervall, um eine Sperre neu zu bewerten (0 = nie)
     akkuSystemmodusOk = [40, 41, 140],   // Intilion 5016: Aktiv / Teil-Aktiv / Netzbildend (12 = Komm-Fehler)
     akkuBetriebszustandOk = [40, 41],    // Intilion 5056: Run / Standby (13 = Start-Komm, 20 = Stop)
-    wrSollwertMaxKw = 125,               // Obergrenze WR-Sollwert
+    // Anti-Windup: WR-Sollwert nicht ueber das strahlungsbasierte Dargebot hinauslaufen lassen,
+    // damit der Wechselrichter bei zurueckkehrender Sonne nicht ungebremst hochfaehrt und taktet.
+    sollwertGrenzeAusDargebot = true,
+    dargebotReserveProzent = 15,         // Zuschlag auf das Dargebot (Modellunsicherheit)
+    dargebotReserveKw = 5,               // zusaetzlicher fester Zuschlag
+    wrSollwertMaxKw = 125,               // harte Obergrenze WR-Sollwert
     wrSollwertMinKw = 0,                 // Untergrenze WR-Sollwert
 
     // --- Failsafe ---
@@ -116,6 +121,9 @@ class EinspeisemanagementConfig {
     this.akkuSperreWiederholungMs = akkuSperreWiederholungMs;
     this.akkuSystemmodusOk = akkuSystemmodusOk;
     this.akkuBetriebszustandOk = akkuBetriebszustandOk;
+    this.sollwertGrenzeAusDargebot = sollwertGrenzeAusDargebot;
+    this.dargebotReserveProzent = dargebotReserveProzent;
+    this.dargebotReserveKw = dargebotReserveKw;
     this.wrSollwertMaxKw = wrSollwertMaxKw;
     this.wrSollwertMinKw = wrSollwertMinKw;
     this.failsafeSollwertKw = failsafeSollwertKw;

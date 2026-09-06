@@ -117,7 +117,17 @@ function computeOnce() {
   // --- min-Select ---
   const pLimitKw = logic.pLimitKw({ direktvermarkterKw, netzbetreiberKw });
 
-  // --- Regler (nur rechnen) ---
+  // --- P_ist (Sentron PV, W -> kW) ---
+  const pIstW = readRegister(b.pIstSourceRegisterId);
+  const pIstKw = pIstW == null ? null : pIstW / 1000;
+
+  // --- Dargebot aus Strahlung Nordwest/Suedost ---
+  // VOR dem Regler, weil er daraus seine Sollwert-Obergrenze bildet (Anti-Windup).
+  const strOst = readVariable(b.strahlungOstVariableId);
+  const strWest = readVariable(b.strahlungWestVariableId);
+  const dargebot = logic.dargebotKw(strOst, strWest, cfg);
+
+  // --- Regler ---
   let regler = null;
   if (napEinspeisungKw != null) {
     regler = logic.reglerSchritt(
@@ -129,6 +139,8 @@ function computeOnce() {
         jetztMs: Date.now(),
         ueberschussSeitMs: _ueberschussSeitMs,
         akkuWache: _akkuWache,
+        dargebotKw: dargebot,
+        pIstKw,
       },
       cfg,
     );
@@ -137,14 +149,7 @@ function computeOnce() {
     _akkuWache = regler.akkuWache;
   }
 
-  // --- P_ist (Sentron PV, W -> kW) ---
-  const pIstW = readRegister(b.pIstSourceRegisterId);
-  const pIstKw = pIstW == null ? null : pIstW / 1000;
-
-  // --- Dargebot aus Strahlung Ost/West -> P_kann ---
-  const strOst = readVariable(b.strahlungOstVariableId);
-  const strWest = readVariable(b.strahlungWestVariableId);
-  const dargebot = logic.dargebotKw(strOst, strWest, cfg);
+  // --- P_kann ---
   const drosselAktiv = Boolean(regler && regler.drosselAktiv);
   const pKann = logic.pKannKw({ drosselAktiv, pIstKw, dargebotKw: dargebot });
 
@@ -238,6 +243,7 @@ function computeOnce() {
     akkuRestdauerS: logic.akkuRestdauerS(akku, cfg),
     akkuBetriebsbereit: logic.akkuBetriebsbereit(akku, cfg),
     akkuSperre: regler ? regler.akkuSperre : null,
+    sollwertObergrenzeKw: regler ? regler.obergrenzeKw : null,
     wrSollwertKw: _wrSollwertKw,
     regler,
     aktuierungAktiv: Boolean(cfg.aktuierungAktiv),
