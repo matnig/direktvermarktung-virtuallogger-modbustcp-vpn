@@ -3353,17 +3353,18 @@
       }
 
       async function refreshOverview() {
-        const hole = (url) => fetchJson(url).then((d) => d).catch(() => null);
-        const [rt, em, emCfg, bridge, mqtt, net, vpn, vars, extVals, sources, registers, mappings, wdogs, pubRules, bridgeStatus] =
-          await Promise.all([
-            hole('/api/runtime/status'), hole('/api/einspeisemanagement/status'),
-            hole('/api/einspeisemanagement'), hole('/api/bridge/server/settings'), hole('/api/mqtt/status'),
-            hole('/api/network/status'), hole('/api/vpn'), hole('/api/variables'),
-            hole('/api/external-registers/values'), hole('/api/sources'), hole('/api/registers'),
-            hole('/api/mappings'), hole('/api/watchdogs'), hole('/api/mqtt-publish-rules'),
-            hole('/api/bridge/status'),
-          ]);
-        OV_DATA = { rt, em, emCfg, bridge, mqtt, net, vpn, vars, extVals, sources, registers, mappings, wdogs, pubRules, bridgeStatus };
+        // EINE Anfrage statt 15 parallelen: über die VPN-Strecke zur Anlage war das
+        // genug Verbindungsaufkommen, um in eine Ratenbegrenzung zu laufen. Nebeneffekt:
+        // alle Werte stammen aus demselben Augenblick statt aus 15 leicht versetzten.
+        let d = null;
+        try { d = await fetchJson('/api/overview'); } catch { d = null; }
+        if (!d) return;
+        const rt = d.runtime, em = d.em, emCfg = d.emCfg, bridge = d.bridge, mqtt = d.mqtt,
+              net = d.net, vpn = d.vpn, bridgeStatus = d.bridgeStatus;
+        const vars = d.variablen, extVals = d.externeWerte,
+              sources = d.quellen, registers = d.registerDefs;
+        const bestand = d.bestand || {};
+        OV_DATA = { rt, em, emCfg, bridge, mqtt, net, vpn, vars, extVals, sources, registers, bridgeStatus };
 
         // ── Betriebsparameter ──
         const karten = [];
@@ -3376,13 +3377,14 @@
           ['ov.p.registersRead', String(Object.keys(rs).length)],
           ['ov.p.readErrors', String(fehlerhaft)],
         ]));
+        const z = (v) => (v == null ? '—' : String(v));
         karten.push(ovKarte('ov.card.bestand', [
-          ['ov.p.sources', sources ? String(sources.length) : '—'],
-          ['ov.p.registers', registers ? String(registers.length) : '—'],
-          ['ov.p.variables', vars ? String(vars.length) : '—'],
-          ['ov.p.mappings', mappings ? String(mappings.length) : '—'],
-          ['ov.p.watchdogs', wdogs ? String((wdogs.watchdogs || wdogs).length) : '—'],
-          ['ov.p.pubRules', pubRules ? String(pubRules.length) : '—'],
+          ['ov.p.sources', z(bestand.quellen)],
+          ['ov.p.registers', z(bestand.register)],
+          ['ov.p.variables', z(bestand.variablen)],
+          ['ov.p.mappings', z(bestand.mappings)],
+          ['ov.p.watchdogs', z(bestand.watchdogs)],
+          ['ov.p.pubRules', z(bestand.publishRegeln)],
         ]));
         if (bridge) {
           const srv = (bridgeStatus && bridgeStatus.server) || {};
@@ -3740,10 +3742,13 @@
       refreshEinspeisemanagement().catch(setDebug);
       refreshTestWriteSources().catch(setDebug);
       refreshUpdateVersion(false).catch(setDebug);
+      // 5 s statt 2 s: zusammen mit der Übersicht war das Anfrageaufkommen über die
+      // VPN-Strecke zu hoch. Der Regler tickt weiter im Sekundentakt, nur die Anzeige
+      // aktualisiert seltener.
       setInterval(() => {
         fetchJson('/api/einspeisemanagement/status')
           .then(renderEmStatus).catch(() => {});
-      }, 2000);
+      }, 5000);
 
       loadDashboard()
         .then(() => { showView(DASHBOARD.startAnsicht || 'uebersicht'); })
