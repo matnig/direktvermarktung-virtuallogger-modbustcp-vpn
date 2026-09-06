@@ -7,7 +7,7 @@ const mqttPublishRuleRepository  = require('../../repositories/mqttPublishRuleRe
 const ExternalRegister = require('../../domain/ExternalRegister');
 const { validateExternalRegister, validateNoAddressConflict } = require('../../validation/externalRegisterValidation');
 const externalServerService = require('../../services/externalServerService');
-const { decodeWords } = require('../../modbus/encodeRegisterValue');
+const externalRegisterValues = require('../../services/externalRegisterValues');
 
 const router = express.Router();
 
@@ -16,59 +16,10 @@ router.get('/', (req, res) => {
 });
 
 // Live values currently held in the external Modbus server register space.
-// Returns per register: raw words (+ hex/binary) and the decoded numeric value.
+// Die Berechnung liegt in externalRegisterValues, damit der Verlaufs-Logger exakt
+// dieselben Werte aufzeichnet, die hier angezeigt werden.
 router.get('/values', (req, res) => {
-  const out = externalRegisterRepository.list().map((r) => {
-    const registerType = r.registerType === 'input' ? 'input' : 'holding';
-    const len = r.length || 1;
-    let words = [];
-    try {
-      words = registerType === 'input'
-        ? externalServerService.readInputWords(r.address, len)
-        : externalServerService.readWords(r.address, len);
-    } catch (e) {
-      words = [];
-    }
-    const raw = decodeWords(words, r.dataType);
-    const prec = Number.isInteger(Number(r.precision)) ? Number(r.precision) : 0;
-    const value = typeof raw === 'number' ? Number(raw.toFixed(prec)) : raw;
-    const hex = words.map((w) => '0x' + (w & 0xffff).toString(16).toUpperCase().padStart(4, '0'));
-    const bin = words.map((w) => (w & 0xffff).toString(2).padStart(16, '0'));
-    return {
-      id: r.id,
-      name: r.name,
-      registerType,
-      address: r.address,
-      dataType: r.dataType,
-      unit: r.unit || '',
-      precision: prec,
-      words,
-      hex,
-      bin,
-      raw,
-      value,
-      word: (words && words.length) ? (words[0] & 0xffff) : 0,
-    };
-  });
-
-  // Pair up "<X> Low" / "<X> High" registers (consecutive address, same type)
-  // into a combined unsigned 32-bit value, shown on the Low entry.
-  const byKey = {};
-  out.forEach((r) => { byKey[r.registerType + ':' + r.address] = r; });
-  out.forEach((r) => {
-    const nm = (r.name || '').trim();
-    if (/low$/i.test(nm)) {
-      const hi = byKey[r.registerType + ':' + (r.address + 1)];
-      if (hi && /high$/i.test((hi.name || '').trim())) {
-        const combined = (((hi.word << 16) >>> 0) | (r.word & 0xffff)) >>> 0;
-        r.combined32 = combined;
-        r.combinedPrecision = r.precision;
-        hi.isHighWordOf = r.address;
-      }
-    }
-  });
-
-  res.json(out);
+  res.json(externalRegisterValues.listValues());
 });
 
 router.get('/:id', (req, res) => {

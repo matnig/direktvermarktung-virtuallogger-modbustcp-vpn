@@ -130,6 +130,29 @@
       .ov-tile.t-err { border-color: #f3c2c2; background: #fffafa; }
       .ov-tile.t-err .t-val { color: var(--err); }
       .ov-sub { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+      .ov-tile { cursor: pointer; }
+      .ov-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      .ov-tile .t-hint { font-size: 11px; color: transparent; margin-top: 2px; }
+      .ov-tile:hover .t-hint { color: var(--accent); }
+
+      /* verlaufsdiagramm */
+      .chart-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
+      .chart-head h2 { margin: 0; }
+      .chart-ranges { display: flex; gap: 6px; margin-left: auto; }
+      .chart-ranges button {
+        width: auto; padding: 5px 11px; font-size: 13px; font-weight: 500;
+        background: #fff; color: var(--muted); border: 1px solid var(--line);
+      }
+      .chart-ranges button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+      .chart-stats { display: flex; gap: 22px; flex-wrap: wrap; margin: 10px 0 0; font-size: 13px; }
+      .chart-stats div span:first-child { color: var(--muted); margin-right: 6px; }
+      .chart-stats div span:last-child { font-weight: 650; font-variant-numeric: tabular-nums; }
+      .chart-wrap { width: 100%; overflow-x: auto; }
+      svg.chart { display: block; width: 100%; height: 260px; }
+      svg.chart .grid { stroke: #eef1f5; stroke-width: 1; }
+      svg.chart .axis { fill: var(--muted); font-size: 11px; }
+      svg.chart .band { fill: var(--accent); opacity: .13; }
+      svg.chart .line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
       .ov-pick-group { margin-top: 14px; }
       .ov-pick-group h4 { margin: 0 0 6px; font-size: 13px; color: #444; }
       .ov-pick-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 4px 16px; max-height: 260px; overflow: auto; border: 1px solid #eee; border-radius: 6px; padding: 8px; }
@@ -271,6 +294,22 @@
         </div>
         <div id="ov-live" class="ov-tiles"></div>
         <p id="ov-live-empty" class="hint" data-i18n="ov.live.empty" hidden>No values selected yet — use “Select values”.</p>
+      </div>
+
+      <div class="panel" id="ov-chart-panel" style="margin-bottom:24px;" hidden>
+        <div class="chart-head">
+          <h2 id="ov-chart-title">—</h2>
+          <span id="ov-chart-sub" class="hint"></span>
+          <div class="chart-ranges" id="ov-chart-ranges">
+            <button data-stunden="1">1 h</button>
+            <button data-stunden="6" class="active">6 h</button>
+            <button data-stunden="24">24 h</button>
+            <button data-stunden="72">3 d</button>
+          </div>
+          <button id="ov-chart-close" style="width:auto;padding:5px 11px;background:#fff;color:var(--muted);border:1px solid var(--line);" data-i18n="ov.pick.close">Close</button>
+        </div>
+        <div class="chart-wrap"><svg class="chart" id="ov-chart"></svg></div>
+        <div class="chart-stats" id="ov-chart-stats"></div>
       </div>
 
       <div class="panel">
@@ -3444,6 +3483,7 @@
 
         renderOverviewLive();
         if (_ovPickerOffen) renderPicker();
+        if (CHART.kind) ladeVerlauf();
       }
 
       // Einen ausgewählten Live-Wert auflösen -> {name, quelle, wert, unit, fehler}
@@ -3483,16 +3523,21 @@
         const host = document.getElementById('ov-live');
         const leer = document.getElementById('ov-live-empty');
         const items = DASHBOARD.liveItems || [];
-        const kacheln = items.map(ovWert).filter(Boolean);
+        // Reihenfolge muss zu `items` passen, damit die Kachel ihre Reihe kennt —
+        // deshalb nicht herausfiltern, sondern unauflösbare Einträge als Platzhalter führen.
+        const kacheln = items.map((i) => ovWert(i) || { name: i.id, quelle: i.kind, wert: null, unit: '', fehler: 'unbekannt' });
         document.getElementById('ov-live-count').textContent =
           kacheln.length ? `${kacheln.length} ${t('ov.live.values')}` : '';
         leer.hidden = items.length > 0;
-        host.innerHTML = kacheln.map((k) => {
+        host.innerHTML = kacheln.map((k, i) => {
           const wert = k.fehler ? t('ov.error') : ovZahl(k.wert, 2);
-          return `<div class="ov-tile${k.fehler ? ' t-err' : ''}">
+          const it = items[i];
+          return `<div class="ov-tile${k.fehler ? ' t-err' : ''}" role="button" tabindex="0"
+              data-kind="${esc(it.kind)}" data-id="${esc(it.id)}" data-name="${esc(k.name)}" data-unit="${esc(k.unit || '')}">
             <div class="t-name">${esc(k.name)}</div>
             <div class="t-val">${esc(wert)}${k.unit ? `<span class="t-unit">${esc(k.unit)}</span>` : ''}</div>
             <div class="t-src">${esc(k.quelle)}</div>
+            <div class="t-hint">${esc(t('ov.chart.open'))}</div>
           </div>`;
         }).join('');
       }
@@ -3556,6 +3601,121 @@
         try { DASHBOARD = await fetchJson('/api/dashboard'); }
         catch { DASHBOARD = { liveItems: [], startAnsicht: 'uebersicht' }; }
       }
+
+
+      // ── Verlaufsdiagramm ──────────────────────────────────────────
+      // Bewusst als eigenes SVG statt einer Diagrammbibliothek: das Geraet laeuft im
+      // Anlagennetz ohne Internetzugang, eine CDN-Abhaengigkeit waere dort tot.
+      let CHART = { kind: null, id: null, name: '', unit: '', stunden: 6 };
+
+      function chartSchliessen() {
+        CHART.kind = null;
+        document.getElementById('ov-chart-panel').hidden = true;
+      }
+
+      function zeitLabel(ms, spanneStunden) {
+        const d = new Date(ms);
+        const zwei = (n) => String(n).padStart(2, '0');
+        return spanneStunden > 36
+          ? `${zwei(d.getDate())}.${zwei(d.getMonth() + 1)}. ${zwei(d.getHours())}:00`
+          : `${zwei(d.getHours())}:${zwei(d.getMinutes())}`;
+      }
+
+      function zeichneDiagramm(daten) {
+        const svg = document.getElementById('ov-chart');
+        const B = 1000, H = 260, links = 58, rechts = 14, oben = 14, unten = 30;
+        const iB = B - links - rechts, iH = H - oben - unten;
+        svg.setAttribute('viewBox', `0 0 ${B} ${H}`);
+        svg.setAttribute('preserveAspectRatio', 'none');
+
+        const p = daten.punkte || [];
+        if (!p.length) {
+          svg.innerHTML = `<text x="${B / 2}" y="${H / 2}" text-anchor="middle" class="axis">${esc(t('ov.chart.empty'))}</text>`;
+          document.getElementById('ov-chart-stats').innerHTML = '';
+          return;
+        }
+
+        let lo = Math.min(...p.map((q) => q.min));
+        let hi = Math.max(...p.map((q) => q.max));
+        if (hi === lo) { hi = lo + 1; lo -= 1; }
+        const luft = (hi - lo) * 0.08;
+        lo -= luft; hi += luft;
+
+        const x = (t0) => links + ((t0 - daten.von) / Math.max(1, daten.bis - daten.von)) * iB;
+        const y = (v) => oben + iH - ((v - lo) / (hi - lo)) * iH;
+
+        // Gitter + Werteachse
+        let teile = '';
+        for (let i = 0; i <= 4; i++) {
+          const v = lo + ((hi - lo) * i) / 4;
+          const yy = y(v);
+          teile += `<line class="grid" x1="${links}" y1="${yy}" x2="${B - rechts}" y2="${yy}" />`;
+          teile += `<text class="axis" x="${links - 8}" y="${yy + 4}" text-anchor="end">${esc(ovZahl(v, 1))}</text>`;
+        }
+        // Zeitachse
+        for (let i = 0; i <= 4; i++) {
+          const tt = daten.von + ((daten.bis - daten.von) * i) / 4;
+          const xx = x(tt);
+          teile += `<text class="axis" x="${xx}" y="${H - 10}" text-anchor="${i === 0 ? 'start' : i === 4 ? 'end' : 'middle'}">${esc(zeitLabel(tt, CHART.stunden))}</text>`;
+        }
+
+        // Min/Max-Band, damit beim Zusammenfassen sichtbar bleibt, wie weit es geschwankt hat
+        const oberkante = p.map((q) => `${x(q.t)},${y(q.max)}`).join(' ');
+        const unterkante = p.slice().reverse().map((q) => `${x(q.t)},${y(q.min)}`).join(' ');
+        teile += `<polygon class="band" points="${oberkante} ${unterkante}" />`;
+        teile += `<polyline class="line" points="${p.map((q) => `${x(q.t)},${y(q.v)}`).join(' ')}" />`;
+        svg.innerHTML = teile;
+
+        const e = (k, v) => `<div><span>${esc(t(k))}</span><span>${esc(v)}</span></div>`;
+        const u = CHART.unit ? ' ' + CHART.unit : '';
+        document.getElementById('ov-chart-stats').innerHTML = [
+          e('ov.chart.last', ovZahl(daten.letzter, 2) + u),
+          e('ov.chart.min', ovZahl(daten.min, 2) + u),
+          e('ov.chart.avg', ovZahl(daten.mittel, 2) + u),
+          e('ov.chart.max', ovZahl(daten.max, 2) + u),
+          e('ov.chart.points', String(daten.anzahlRoh)),
+        ].join('');
+      }
+
+      async function ladeVerlauf() {
+        if (!CHART.kind) return;
+        const q = `kind=${encodeURIComponent(CHART.kind)}&id=${encodeURIComponent(CHART.id)}&stunden=${CHART.stunden}`;
+        try {
+          const daten = await fetchJson('/api/history?' + q);
+          document.getElementById('ov-chart-sub').textContent =
+            daten.anzahlRoh ? '' : t('ov.chart.noData');
+          zeichneDiagramm(daten);
+        } catch (err) {
+          document.getElementById('ov-chart-sub').textContent = (err && err.error) || String(err);
+        }
+      }
+
+      function verlaufOeffnen(kind, id, name, unit) {
+        CHART = { kind, id, name, unit, stunden: CHART.stunden || 6 };
+        const panel = document.getElementById('ov-chart-panel');
+        panel.hidden = false;
+        document.getElementById('ov-chart-title').textContent = name;
+        ladeVerlauf();
+        panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+
+      document.getElementById('ov-live').addEventListener('click', (e) => {
+        const k = e.target.closest('.ov-tile');
+        if (k) verlaufOeffnen(k.dataset.kind, k.dataset.id, k.dataset.name, k.dataset.unit);
+      });
+      document.getElementById('ov-live').addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        const k = e.target.closest('.ov-tile');
+        if (k) { e.preventDefault(); verlaufOeffnen(k.dataset.kind, k.dataset.id, k.dataset.name, k.dataset.unit); }
+      });
+      document.getElementById('ov-chart-ranges').addEventListener('click', (e) => {
+        const b = e.target.closest('button');
+        if (!b) return;
+        CHART.stunden = Number(b.dataset.stunden);
+        [...e.currentTarget.querySelectorAll('button')].forEach((x) => x.classList.toggle('active', x === b));
+        ladeVerlauf();
+      });
+      document.getElementById('ov-chart-close').addEventListener('click', chartSchliessen);
 
       document.getElementById('main-nav').addEventListener('click', (e) => {
         const btn = e.target.closest('.nav-btn');

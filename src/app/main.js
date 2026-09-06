@@ -19,6 +19,7 @@ const einspeisemanagementService    = require('../services/einspeisemanagementSe
 const controlService                = require('../services/controlService');
 const calibrationSamplerService     = require('../services/calibrationSamplerService');
 const dashboardService              = require('../services/dashboardService');
+const historyService                = require('../services/historyService');
 
 initializeCollections([
   { name: 'sources',    fallback: [] },
@@ -26,6 +27,8 @@ initializeCollections([
   { name: 'profiles',   fallback: [] },
   { name: dashboardService.COLLECTION,
     fallback: [dashboardService.createDefaultConfig()] },
+  { name: historyService.COLLECTION,
+    fallback: [historyService.createDefaultConfig()] },
   { name: settingsService.COLLECTION,         fallback: [settingsService.createDefaultSettings()] },
   { name: vpnService.VPN_COLLECTION,          fallback: [vpnService.createDefaultConfig()] },
   { name: vpnService.VPN_SECRETS_COLLECTION,  fallback: [vpnService.createDefaultSecrets()] },
@@ -55,4 +58,14 @@ app.listen(PORT, HOST, async () => {
   mqttService.connect();
   controlService.startControl();
   calibrationSamplerService.init(); // Kalibrier-Sampler fortsetzen, falls aktiviert
+  historyService.start();           // Verlaufs-Logger für die ausgewählten Live-Werte
 });
+
+// Gepufferte Verlaufspunkte beim Beenden noch wegschreiben, sonst geht bis zu einem
+// Flush-Intervall an Aufzeichnung verloren (systemctl restart passiert hier regelmäßig).
+for (const sig of ['SIGTERM', 'SIGINT']) {
+  process.on(sig, () => {
+    try { historyService.flush(); } catch (e) { console.warn('[history] Flush beim Beenden:', e.message); }
+    process.exit(0);
+  });
+}
