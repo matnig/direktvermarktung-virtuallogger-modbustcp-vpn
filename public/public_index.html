@@ -130,6 +130,19 @@
       .ov-tile.t-err { border-color: #f3c2c2; background: #fffafa; }
       .ov-tile.t-err .t-val { color: var(--err); }
       .ov-sub { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+
+      /* feld-erklaerungen */
+      .info-btn {
+        width: 17px; height: 17px; min-width: 17px; padding: 0; margin: 0 0 0 6px;
+        border-radius: 50%; border: 1px solid var(--line); background: #fff; color: var(--muted);
+        font-size: 11px; font-weight: 700; line-height: 15px; cursor: help; vertical-align: middle;
+      }
+      .info-btn:hover, .info-btn.offen { background: var(--accent); border-color: var(--accent); color: #fff; }
+      .feld-info {
+        margin: 4px 0 0; padding: 8px 10px; font-size: 12px; line-height: 1.45;
+        color: var(--text); background: var(--accent-soft); border-left: 3px solid var(--accent);
+        border-radius: 0 6px 6px 0;
+      }
       .ov-tile { cursor: pointer; }
       .ov-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
       .ov-tile .t-hint { font-size: 11px; color: transparent; margin-top: 2px; }
@@ -1356,6 +1369,10 @@
         // sonst bleiben Kartentitel und Kachelnamen in der alten Sprache stehen.
         if (typeof refreshOverview === 'function') refreshOverview().catch(() => {});
         // Die Lastgang-Tabelle wird zur Laufzeit gebaut (inkl. Zahlenformat) -> neu rendern
+        document.querySelectorAll('.feld-info').forEach((p) => {
+          const b = p.previousElementSibling && p.previousElementSibling.querySelector('.info-btn');
+          if (b) p.textContent = t(b.dataset.infoKey);
+        });
         if (typeof wiLadeLastgaenge === 'function') {
           const sel = document.getElementById('wi-lastgang-select');
           wiLadeLastgaenge(sel ? sel.value : undefined).catch(() => {});
@@ -3975,6 +3992,100 @@
         } catch (err) { st.textContent = (err && err.error) || String(err); setDebug(err); }
       });
 
+
+      // ── Feld-Erklaerungen ─────────────────────────────────────────
+      // Ueber den Feldnamen zugeordnet statt ueber Attribute im Markup: die Formulare
+      // sind gewachsen, und so bleibt die Erklaerung an einer Stelle pflegbar.
+      const FELD_INFO = {
+        // Einspeisemanagement — Netzbetreiber und Grenzen
+        pRef100Kw: 'i.pRef100Kw',
+        aqSkalaMaxKw: 'i.aqSkalaMaxKw',
+        wrSollwertMinKw: 'i.wrSollwertMinKw',
+        wrSollwertMaxKw: 'i.wrSollwertMaxKw',
+        failsafeSollwertKw: 'i.failsafeSollwertKw',
+        aktuierungAktiv: 'i.aktuierungAktiv',
+        // Regler
+        totbandKw: 'i.totbandKw',
+        reglerVerstaerkung: 'i.reglerVerstaerkung',
+        maxSchrittKw: 'i.maxSchrittKw',
+        sollwertGrenzeAusDargebot: 'i.sollwertGrenzeAusDargebot',
+        dargebotReserveProzent: 'i.dargebotReserveProzent',
+        dargebotReserveKw: 'i.dargebotReserveKw',
+        // Dargebot
+        pInstalliertKw: 'i.pInstalliertKw',
+        strahlungReferenzWm2: 'i.strahlungReferenzWm2',
+        dargebotMaxKw: 'i.dargebotMaxKw',
+        pKannFaktor: 'i.pKannFaktor',
+        // Akku
+        akkuMaxLadeleistungKw: 'i.akkuMaxLadeleistungKw',
+        akkuVorsteuerung: 'i.akkuVorsteuerung',
+        akkuFreigabeSocProzent: 'i.akkuFreigabeSocProzent',
+        akkuFreigabeUebergangProzent: 'i.akkuFreigabeUebergangProzent',
+        akkuReserveFaktor: 'i.akkuReserveFaktor',
+        akkuRestdauerSchwelleS: 'i.akkuRestdauerSchwelleS',
+        akkuRestdauerUebergangS: 'i.akkuRestdauerUebergangS',
+        ueberschussToleranzMs: 'i.ueberschussToleranzMs',
+        akkuReaktionszeitMs: 'i.akkuReaktionszeitMs',
+        akkuMindestLadeleistungKw: 'i.akkuMindestLadeleistungKw',
+        akkuSperreWiederholungMs: 'i.akkuSperreWiederholungMs',
+        reglerAbtastMs: 'i.reglerAbtastMs',
+        logoTimeoutMs: 'i.logoTimeoutMs',
+        // Wirtschaftlichkeit
+        lastgangId: 'i.lastgangId',
+        bezugspreisEurProKwh: 'i.bezugspreis',
+        ertragDirektKundeEurProKwh: 'i.ertragKunde',
+        ertragDirektvermarktungEurProKwh: 'i.ertragDv',
+        anteilDirektKundeProzent: 'i.anteilKunde',
+        akkuBestandKwh: 'i.akkuBestandKwh',
+        akkuVerkaufserloesEur: 'i.akkuVerkauf',
+        akkuNeuKwh: 'i.akkuNeuKwh',
+        akkuNeuLeistungKw: 'i.akkuNeuLeistungKw',
+        akkuNeuKostenEurProKwh: 'i.akkuPreis',
+        akkuWirkungsgrad: 'i.akkuWirkungsgrad',
+        pvErweiterungKwp: 'i.pvErweiterung',
+        pvKostenEurProKwp: 'i.pvKosten',
+        spezifischerErtragKwhProKwp: 'i.pvErtrag',
+        sonstigeKostenEur: 'i.sonstigeKosten',
+        betriebskostenProzentProJahr: 'i.betriebskosten',
+        betrachtungsjahreJahre: 'i.betrachtungsjahre',
+        kalkulationszinsProzent: 'i.kalkulationszins',
+      };
+
+      function baueFeldInfos() {
+        for (const [feld, key] of Object.entries(FELD_INFO)) {
+          document.querySelectorAll(`[name="${feld}"], #${feld}`).forEach((el) => {
+            const label = el.closest('label');
+            if (!label || label.querySelector('.info-btn')) return;
+            const ziel = label.querySelector('span') || label;
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'info-btn';
+            btn.textContent = 'i';
+            btn.dataset.infoKey = key;
+            btn.setAttribute('aria-label', 'Info');
+            ziel.appendChild(btn);
+          });
+        }
+      }
+
+      // Ein Klick blendet die Erklaerung unter dem Feld ein; erneuter Klick schliesst sie.
+      document.addEventListener('click', (e) => {
+        const btn = e.target.closest('.info-btn');
+        if (!btn) return;
+        e.preventDefault();
+        const label = btn.closest('label');
+        if (!label) return;
+        const vorhanden = label.nextElementSibling;
+        if (vorhanden && vorhanden.classList.contains('feld-info')) {
+          vorhanden.remove(); btn.classList.remove('offen'); return;
+        }
+        const p = document.createElement('p');
+        p.className = 'feld-info';
+        p.textContent = t(btn.dataset.infoKey);
+        label.insertAdjacentElement('afterend', p);
+        btn.classList.add('offen');
+      });
+
       document.getElementById('main-nav').addEventListener('click', (e) => {
         const btn = e.target.closest('.nav-btn');
         if (btn) showView(btn.dataset.view);
@@ -4006,6 +4117,7 @@
           .then(renderEmStatus).catch(() => {});
       }, 5000);
 
+      baueFeldInfos();
       wiLadeConfig().catch(() => {});
       loadDashboard()
         .then(() => { showView(DASHBOARD.startAnsicht || 'uebersicht'); })
