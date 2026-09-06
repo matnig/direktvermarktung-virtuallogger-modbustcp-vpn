@@ -438,3 +438,13 @@ test('weder SoC noch ladbare Energie: keine Freigabe', () => {
   const akku = { verfuegbar: true, ladeleistungKw: 10, maxLadeleistungKw: 50 };
   assert.strictEqual(akkuFreigabeFaktor(akku, c), 0);
 });
+
+test('voller Akku wird nicht faelschlich als "nimmt nicht an" gemeldet', () => {
+  const c = cfg({ akkuFreigabeSocProzent: 100, akkuFreigabeUebergangProzent: 5 });
+  // Feldbild 06.09. 12:48: SoC 100 %, 0 kWh ladbar, 57 kW Einspeisung unter einem 125-kW-Limit
+  const voll = { verfuegbar: true, socProzent: 100, ladeleistungKw: 0, maxLadeleistungKw: 50,
+                 ladbareEnergieKwh: 0, systemmodus: 40, betriebszustand: 40 };
+  assert.strictEqual(akkuFreigabeFaktor(voll, c), 0);
+  const v = laufen(c, () => voll, () => 57, 20, 125);
+  assert.ok(v.every((x) => !x.gesperrt), 'keine Sperre erwartet, der Akku ist nur voll');
+});

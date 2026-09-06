@@ -202,7 +202,10 @@ function akkuAnnahmeWache({ napEinspeisungKw, pLimitKw: limit, akku, jetztMs, zu
   let seit = z.napUeberschussSeitMs;
   let letzteSperreMs = z.letzteSperreMs;
   if (!gesperrt) {
-    if (ueberschuss && akkuReserveKw(akku, config) > 0) {
+    // Nur pruefen, wenn die Reserve ueberhaupt angerechnet wird. Ist die Freigabe schon 0
+    // (Akku voll bzw. Restdauer zu kurz), sagt ein anstehender Ueberschuss nichts ueber den
+    // Akku aus — er wuerde sonst dauerhaft faelschlich als "nimmt nicht an" gemeldet.
+    if (ueberschuss && akkuReserveKw(akku, config) > 0 && akkuFreigabeFaktor(akku, config) > 0) {
       if (seit == null) seit = jetzt;
       // Während einer laufenden Probe ohne Karenz sperren — sonst entstünde bei einem dauerhaft
       // toten Akku bei jeder Probe ein neues Einspeisefenster von voller Reaktionszeit.
