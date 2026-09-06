@@ -390,6 +390,12 @@
             <label><span data-i18n="wi.akkuEta">Round-trip efficiency</span><input type="number" step="0.01" name="akkuWirkungsgrad" /></label>
           </div>
 
+          <h3 style="margin-top:16px;" data-i18n="wi.gruppe.zusatz">Displaceable generation</h3>
+          <div class="row">
+            <label><span data-i18n="wi.zusatzlast">Series (e.g. CHP)</span><select name="zusatzlastId" id="wi-zusatzlast-select"></select></label>
+            <label><span data-i18n="wi.zusatzKosten">Its generation cost (€/kWh)</span><input type="number" step="0.001" name="zusatzlastKostenEurProKwh" /></label>
+          </div>
+
           <h3 style="margin-top:16px;" data-i18n="wi.gruppe.pv">PV expansion</h3>
           <div class="row">
             <label><span data-i18n="wi.pvErw">Additional (kWp)</span><input type="number" step="1" name="pvErweiterungKwp" /></label>
@@ -1339,6 +1345,8 @@
       }
 
       function applyTranslations() {
+        // Knopf-Elemente werden unten neu erzeugt, falls sie beim Neuschreiben
+        // der Beschriftungen verloren gingen.
         document.querySelectorAll('[data-i18n]').forEach(el => {
           el.textContent = t(el.dataset.i18n);
         });
@@ -1367,6 +1375,7 @@
         refreshEinspeisemanagement().catch(() => {});
         // Übersicht und Picker werden zur Laufzeit aus t() aufgebaut -> neu rendern,
         // sonst bleiben Kartentitel und Kachelnamen in der alten Sprache stehen.
+        if (typeof baueFeldInfos === 'function') baueFeldInfos();
         if (typeof refreshOverview === 'function') refreshOverview().catch(() => {});
         // Die Lastgang-Tabelle wird zur Laufzeit gebaut (inkl. Zahlenformat) -> neu rendern
         document.querySelectorAll('.feld-info').forEach((p) => {
@@ -3836,6 +3845,7 @@
         'akkuNeuLeistungKw', 'akkuNeuKostenEurProKwh', 'akkuWirkungsgrad', 'pvErweiterungKwp',
         'pvKostenEurProKwp', 'spezifischerErtragKwhProKwp', 'sonstigeKostenEur',
         'betriebskostenProzentProJahr', 'betrachtungsjahreJahre', 'kalkulationszinsProzent',
+        'zusatzlastKostenEurProKwh',
       ];
 
       const eur = (v) => (v == null || !Number.isFinite(v)) ? '—'
@@ -3845,7 +3855,10 @@
 
       function wiSammle() {
         const f = document.getElementById('wi-form');
-        const out = { lastgangId: f.elements['lastgangId'].value || null };
+        const out = {
+          lastgangId: f.elements['lastgangId'].value || null,
+          zusatzlastId: f.elements['zusatzlastId'].value || null,
+        };
         WI_FELDER.forEach((k) => {
           const v = Number(f.elements[k].value);
           if (Number.isFinite(v)) out[k] = v;
@@ -3859,15 +3872,22 @@
           const f = document.getElementById('wi-form');
           WI_FELDER.forEach((k) => { if (f.elements[k]) f.elements[k].value = cfg[k]; });
           await wiLadeLastgaenge(cfg.lastgangId);
+          if (cfg.zusatzlastId) f.elements['zusatzlastId'].value = cfg.zusatzlastId;
         } catch (err) { setDebug(err); }
       }
 
       async function wiLadeLastgaenge(auswahl) {
         const { lastgaenge } = await fetchJson('/api/wirtschaftlichkeit/lastgaenge');
         const sel = document.getElementById('wi-lastgang-select');
-        sel.innerHTML = lastgaenge.map((l) =>
+        const netz = lastgaenge.filter((l) => (l.art || 'netzknoten') !== 'zusatzlast');
+        const zusatz = lastgaenge.filter((l) => l.art === 'zusatzlast');
+        sel.innerHTML = netz.map((l) =>
           `<option value="${esc(l.id)}"${l.id === auswahl ? ' selected' : ''}>${esc(l.name)}</option>`).join('')
           || `<option value="">—</option>`;
+        const zsel = document.getElementById('wi-zusatzlast-select');
+        const zAlt = zsel.value;
+        zsel.innerHTML = `<option value="">${esc(t('wi.ohne'))}</option>`
+          + zusatz.map((l) => `<option value="${esc(l.id)}"${l.id === zAlt ? ' selected' : ''}>${esc(l.name)}</option>`).join('');
         document.getElementById('wi-lastgaenge').innerHTML = lastgaenge.length
           ? `<table class="rt-table"><thead><tr>
               <th>${esc(t('wi.t.name'))}</th><th>${esc(t('wi.t.zeitraum'))}</th><th>${esc(t('wi.t.tage'))}</th>
@@ -3899,6 +3919,8 @@
             ${z('wi.e.bezug', kwh(e.bezugAltKwh * jf) + ' → ' + kwh(e.bezugNeuKwh * jf))}
             ${z('wi.e.einspeisung', kwh(e.einspeisungAltKwh * jf) + ' → ' + kwh(e.einspeisungNeuKwh * jf))}
             ${z('wi.e.zyklen', (e.vollzyklen * jf).toFixed(0) + ' /a')}
+            ${d.zusatzlastKwh ? z('wi.e.zusatzlast', kwh(d.zusatzlastKwh * jf) + ' /a') : ''}
+            ${d.wertVerdraengtEurProKwh ? z('wi.e.wertVerdraengt', d.wertVerdraengtEurProKwh.toFixed(3) + ' €/kWh') : ''}
           </div>
           <div class="ov-card">
             <h3>${esc(t('wi.e.geld'))}</h3>
@@ -4032,6 +4054,8 @@
         logoTimeoutMs: 'i.logoTimeoutMs',
         // Wirtschaftlichkeit
         lastgangId: 'i.lastgangId',
+        zusatzlastId: 'i.zusatzlastId',
+        zusatzlastKostenEurProKwh: 'i.zusatzKosten',
         bezugspreisEurProKwh: 'i.bezugspreis',
         ertragDirektKundeEurProKwh: 'i.ertragKunde',
         ertragDirektvermarktungEurProKwh: 'i.ertragDv',
@@ -4056,14 +4080,20 @@
           document.querySelectorAll(`[name="${feld}"], #${feld}`).forEach((el) => {
             const label = el.closest('label');
             if (!label || label.querySelector('.info-btn')) return;
-            const ziel = label.querySelector('span') || label;
+            // BEWUSST ans Label und nicht in den uebersetzten <span>: applyTranslations
+            // schreibt dessen Inhalt neu und wuerde den Knopf sonst wieder entfernen.
+            const beschriftung = label.querySelector('[data-i18n]') || label.querySelector('span');
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'info-btn';
             btn.textContent = 'i';
             btn.dataset.infoKey = key;
             btn.setAttribute('aria-label', 'Info');
-            ziel.appendChild(btn);
+            if (beschriftung && beschriftung.parentNode === label) {
+              beschriftung.insertAdjacentElement('afterend', btn);
+            } else {
+              label.insertBefore(btn, el);
+            }
           });
         }
       }

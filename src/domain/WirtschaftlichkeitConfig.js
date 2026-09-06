@@ -32,6 +32,10 @@ class WirtschaftlichkeitConfig {
     betrachtungsjahreJahre = 15,
     kalkulationszinsProzent = 4,
 
+    // --- zusätzlich verschiebbare Erzeugung (z. B. BHKW, das abgeschaltet werden kann) ---
+    zusatzlastId = null,                      // importierter Zählerverlauf dieser Erzeugung
+    zusatzlastKostenEurProKwh = 0.15,         // was ihre Erzeugung je kWh kostet
+
     lastgangId = null,                        // welcher importierte Lastgang gerechnet wird
     createdAt,
     updatedAt,
@@ -44,7 +48,8 @@ class WirtschaftlichkeitConfig {
       akkuWirkungsgrad, akkuEntladetiefe,
       pvBestandKwp, pvErweiterungKwp, pvKostenEurProKwp, spezifischerErtragKwhProKwp,
       sonstigeKostenEur, betriebskostenProzentProJahr, betrachtungsjahreJahre,
-      kalkulationszinsProzent, lastgangId, createdAt, updatedAt,
+      kalkulationszinsProzent, zusatzlastId, zusatzlastKostenEurProKwh,
+      lastgangId, createdAt, updatedAt,
     });
   }
 }

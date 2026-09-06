@@ -15,6 +15,51 @@ const { readCollection, updateCollection } = require('../persistence/jsonStore')
 const COLLECTION = 'lastgaenge';
 const DIR = path.join(DATA_DIR, 'lastgaenge');
 
+// ── Home-Assistant-Export (Zaehlerstaende) ───────────────────────────
+// Format: entity_id,state,last_changed mit KUMULIERTEM Zaehlerstand. Daraus wird die
+// Energie je Intervall als Differenz gebildet. Rueckspruenge (Zaehlertausch, Neustart)
+// und unplausible Spruenge werden verworfen statt als Riesenverbrauch zu zaehlen.
+function parseHaCsv(text) {
+  const zeilen = String(text).replace(/^﻿/, '').split(/\r?\n/);
+  const kopf = (zeilen[0] || '').toLowerCase();
+  if (!/entity_id/.test(kopf) || !/last_changed/.test(kopf)) return null;
+  const spalten = kopf.split(',').map((c) => c.trim());
+  const iState = spalten.indexOf('state');
+  const iZeit = spalten.indexOf('last_changed');
+
+  const roh = [];
+  for (let i = 1; i < zeilen.length; i++) {
+    const t = zeilen[i].split(',');
+    if (t.length <= Math.max(iState, iZeit)) continue;
+    const ts = Date.parse(t[iZeit]);
+    const v = Number(t[iState]);
+    if (Number.isFinite(ts) && Number.isFinite(v)) roh.push([ts, v]);
+  }
+  if (roh.length < 2) throw new Error('Zu wenige Datenpunkte im Home-Assistant-Export');
+  roh.sort((a, b) => a[0] - b[0]);
+
+  // Zaehlerstand -> Energie je Schritt
+  const punkte = [];
+  let verworfen = 0;
+  for (let i = 1; i < roh.length; i++) {
+    const d = roh[i][1] - roh[i - 1][1];
+    const dtStunden = (roh[i][0] - roh[i - 1][0]) / 3600000;
+    // Plausibilitaet: kein Ruecksprung, und nicht mehr als 1000 kWh je Stunde
+    if (d < 0 || (dtStunden > 0 && d / dtStunden > 1000)) { verworfen++; continue; }
+    punkte.push([roh[i][0], d, 0]);
+  }
+  if (!punkte.length) throw new Error('Keine plausiblen Differenzen im Zaehlerverlauf');
+  const dt = punkte.length > 1
+    ? Math.round((punkte[punkte.length - 1][0] - punkte[0][0]) / (punkte.length - 1) / 60000)
+    : 60;
+  return {
+    punkte, messperiodeMin: Math.max(1, dt), einheit: 'kWh',
+    rollenErkannt: true, ungueltigeZeilen: verworfen,
+    von: punkte[0][0], bis: punkte[punkte.length - 1][0],
+    art: 'zusatzlast',
+  };
+}
+
 // ── CSV-Parser ───────────────────────────────────────────────────────
 // Zugeschnitten auf das Format der Netzbetreiber-Downloads (IDSpecto/enVIEW und
 // aehnliche): Kopfblock, dann eine Zeile "Datum/Uhrzeit;...", danach Werte mit
@@ -23,6 +68,8 @@ const DIR = path.join(DATA_DIR, 'lastgaenge');
 //   1-1:1.29.0 / "Netzbetreiber an Kunde" / (+P)  -> Bezug
 //   1-1:2.29.0 / "Kunde an Netzbetreiber" / (-P)  -> Einspeisung
 function parseCsv(text) {
+  const ha = parseHaCsv(text);
+  if (ha) return ha;
   const zeilen = String(text).replace(/^﻿/, '').split(/\r?\n/);
   const kopfIdx = zeilen.findIndex((l) => /^Datum\/Uhrzeit/i.test(l.trim()));
   if (kopfIdx < 0) {
@@ -126,6 +173,7 @@ function importieren({ name, csv }) {
     anzahlPunkte: geparst.punkte.length,
     messperiodeMin: geparst.messperiodeMin,
     einheit: geparst.einheit,
+    art: geparst.art || 'netzknoten',
     rollenErkannt: geparst.rollenErkannt,
     ungueltigeZeilen: geparst.ungueltigeZeilen,
     summeBezugKwh: Number(bezug.toFixed(1)),
@@ -146,4 +194,4 @@ function loeschen(id) {
   return true;
 }
 
-module.exports = { COLLECTION, parseCsv, list, getPunkte, importieren, loeschen };
+module.exports = { COLLECTION, parseCsv, parseHaCsv, list, getPunkte, importieren, loeschen };

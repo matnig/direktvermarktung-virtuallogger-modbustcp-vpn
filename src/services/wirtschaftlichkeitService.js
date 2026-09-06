@@ -61,6 +61,31 @@ function rechne(ueberschreibungen = {}) {
       : 'Zusätzliche PV anhand des importierten Erzeugungsprofils skaliert.');
   }
 
+  // Zusätzlich verschiebbare Erzeugung (BHKW o. ä.): Sie deckt heute Last, die sonst
+  // aus dem Netz käme. Ein größerer Speicher könnte sie ersetzen, also zählt sie als
+  // zusätzlicher Bedarf, den der Speicher bedienen kann.
+  let zusatzlastKwh = 0;
+  if (cfg.zusatzlastId) {
+    const zl = lastgangService.getPunkte(cfg.zusatzlastId);
+    if (zl.length) {
+      const schrittMs = (meta.messperiodeMin || 15) * 60000;
+      const eimer = new Map();
+      for (const [ts, wert] of zl) {
+        const k = Math.floor(ts / schrittMs) * schrittMs;
+        eimer.set(k, (eimer.get(k) || 0) + (wert || 0));
+      }
+      punkte = punkte.map((p) => {
+        const k = Math.floor(p[0] / schrittMs) * schrittMs;
+        const zu = eimer.get(k) || 0;
+        zusatzlastKwh += zu;
+        return [p[0], (p[1] || 0) + zu, p[2] || 0];
+      });
+      annahmen.push(`Zusätzlich verschiebbare Erzeugung von ${zusatzlastKwh.toFixed(0)} kWh `
+        + 'wurde dem Bedarf zugeschlagen. Der Wert einer verschobenen Kilowattstunde ist der '
+        + 'mengengewichtete Mittelwert aus Bezugspreis und Erzeugungskosten dieser Anlage.');
+    }
+  }
+
   const zusatzKapazitaet = Math.max(0, cfg.akkuNeuKwh - cfg.akkuBestandKwh);
   if (cfg.akkuNeuKwh > 0 && zusatzKapazitaet === 0) {
     annahmen.push('Der neue Speicher ist nicht größer als der Bestand — es wird keine '
@@ -75,8 +100,14 @@ function rechne(ueberschreibungen = {}) {
     messperiodeMin: meta.messperiodeMin || 15,
   });
 
+  // Mengengewichteter Wert einer verdrängten Kilowattstunde
+  const bedarfGesamt = sim.bezugAltKwh || 1;
+  const anteilZusatz = Math.min(1, zusatzlastKwh / bedarfGesamt);
+  const wertVerdraengt = anteilZusatz * cfg.zusatzlastKostenEurProKwh
+    + (1 - anteilZusatz) * cfg.bezugspreisEurProKwh;
+
   const wirtschaft = logik.bewerte(sim, {
-    bezugspreisEurProKwh: cfg.bezugspreisEurProKwh,
+    bezugspreisEurProKwh: wertVerdraengt,
     ertragDirektKundeEurProKwh: cfg.ertragDirektKundeEurProKwh,
     ertragDirektvermarktungEurProKwh: cfg.ertragDirektvermarktungEurProKwh,
     anteilDirektKundeProzent: cfg.anteilDirektKundeProzent,
@@ -97,6 +128,8 @@ function rechne(ueberschreibungen = {}) {
     lastgang: { id: meta.id, name: meta.name, von: meta.von, bis: meta.bis, tage },
     jahresfaktor,
     zusatzKapazitaetKwh: zusatzKapazitaet,
+    zusatzlastKwh,
+    wertVerdraengtEurProKwh: wertVerdraengt,
     energie: sim,
     wirtschaft,
     annahmen,
