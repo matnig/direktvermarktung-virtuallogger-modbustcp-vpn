@@ -411,21 +411,25 @@ test('SoC 94 % mit 4 kWh Restkapazitaet: voller Puffer statt Ausbremsen', () => 
 });
 
 test('Akku fast voll: Freigabe blendet ueber die Restdauer aus', () => {
-  // SoC-Kriterium hier bewusst neutral, damit nur die Restdauer wirkt
-  const c = cfg({ akkuFreigabeSocProzent: 100, akkuFreigabeUebergangProzent: 0 });
+  const c = cfg(); // Schwelle 15 s, Band 30 s -> voll ab 45 s Restdauer
   const bei = (kwh) => akkuFreigabeFaktor(
     { verfuegbar: true, socProzent: 96, ladeleistungKw: 0, maxLadeleistungKw: 50, ladbareEnergieKwh: kwh }, c);
-  assert.strictEqual(bei(2.5), 1);     // 180 s -> voll
-  assert.strictEqual(bei(5 / 3), 0.5); // 120 s -> halb
-  assert.strictEqual(bei(5 / 6), 0);   //  60 s -> aus
-  assert.strictEqual(bei(0), 0);       // voll  -> aus
+  assert.strictEqual(bei(50 * 45 / 3600), 1);   // 45 s -> voll
+  assert.strictEqual(bei(50 * 30 / 3600), 0.5); // 30 s -> halb
+  assert.strictEqual(bei(50 * 15 / 3600), 0);   // 15 s -> aus
+  assert.strictEqual(bei(0), 0);                // voll  -> aus
 });
 
-test('restriktiveres Kriterium gewinnt: SoC-Schwelle bremst trotz Restkapazitaet', () => {
-  const c = cfg({ akkuFreigabeSocProzent: 85 }); // alte Schwelle
+test('Restdauer hat Vorrang vor dem SoC, wenn sie vorliegt', () => {
+  // Der SoC ist nur ein Proxy. Liegt die echte Restkapazitaet vor, darf der grobe Wert
+  // den genauen nicht ueberstimmen — sonst bremst er den Akku am Ende unnoetig aus.
+  const c = cfg({ akkuFreigabeSocProzent: 85 });
   const akku = { verfuegbar: true, socProzent: 90, ladeleistungKw: 0,
                  maxLadeleistungKw: 50, ladbareEnergieKwh: 10 };
-  assert.strictEqual(akkuFreigabeFaktor(akku, c), 0); // SoC sperrt, obwohl Restdauer reichlich
+  assert.strictEqual(akkuFreigabeFaktor(akku, c), 1);
+  // Ohne Kapazitaetsregister greift der SoC weiterhin
+  const ohne = { verfuegbar: true, socProzent: 90, ladeleistungKw: 0, maxLadeleistungKw: 50 };
+  assert.strictEqual(akkuFreigabeFaktor(ohne, c), 0);
 });
 
 test('ladbare Energie nicht gebunden: SoC bleibt Rueckfallebene', () => {
@@ -512,4 +516,45 @@ test('echte Drosselung wird weiterhin als solche erkannt', () => {
   }, c);
   assert.ok(r.wrSollwertKw < 28);
   assert.strictEqual(r.drosselAktiv, true);
+});
+
+// --- Feldfall 06.09. 13:40: Regler drosselte auf 0, waehrend der Akku mit 40 kW lud ---
+
+test('Akku laedt kraeftig und bezieht aus dem Netz: es wird NICHT gedrosselt', () => {
+  const c = cfg();
+  // Reale Messwerte 13:40:10: Netzknoten bezieht 3,2 kW, Akku laedt 32,8 kW von 50 kW,
+  // SoC 97,8 %, noch 1 kWh ladbar. Der Regler fuhr den WR damals von 44 auf 0 kW.
+  const akku = { verfuegbar: true, socProzent: 97.8, ladeleistungKw: 32.8,
+                 maxLadeleistungKw: 50, ladbareEnergieKwh: 1, systemmodus: 40, betriebszustand: 40 };
+  assert.strictEqual(akkuFreigabeFaktor(akku, c), 1); // 72 s Restdauer -> volle Freigabe
+  const eff = effektiveEinspeisungKw(-3.2, akku, c);
+  assert.ok(eff < -1, `erwartet deutlich negativ (lockern), war ${eff}`);
+  const r = reglerSchritt({
+    napEinspeisungKw: -3.2, pLimitKw: 0, wrSollwertAktuellKw: 43.8, akku,
+    jetztMs: 1000, dargebotKw: 73.9, pIstKw: 58.4,
+  }, c);
+  assert.strictEqual(r.grund, 'lockern');
+  assert.ok(r.wrSollwertKw > 43.8, 'der Sollwert muss steigen, nicht fallen');
+});
+
+test('Ueberschuss-Spitze beim Hochfahren des Akkus wird ausgesessen', () => {
+  const c = cfg();
+  // 13:40:04: nap springt auf 18,6 kW, weil der Akku erst bei 13,9 kW ist und noch hochfaehrt
+  const akku = { verfuegbar: true, socProzent: 97.8, ladeleistungKw: 13.9,
+                 maxLadeleistungKw: 50, ladbareEnergieKwh: 1, systemmodus: 40, betriebszustand: 40 };
+  const r = reglerSchritt({
+    napEinspeisungKw: 18.6, pLimitKw: 0, wrSollwertAktuellKw: 58.8, akku,
+    jetztMs: 1000, dargebotKw: 74, pIstKw: 63.2,
+  }, c);
+  assert.notStrictEqual(r.grund, 'drosseln'); // Reserve 36 kW deckt die Spitze
+  assert.ok(r.wrSollwertKw >= 58.8);
+});
+
+test('wirklich voller Akku: Vorsteuerung greift weiterhin', () => {
+  const c = cfg();
+  const voll = { verfuegbar: true, socProzent: 100, ladeleistungKw: 30,
+                 maxLadeleistungKw: 50, ladbareEnergieKwh: 0 };
+  assert.strictEqual(akkuFreigabeFaktor(voll, c), 0);
+  // Erschoepfung 1-20/50=0,6 x 30 = 18 -> vorausschauend drosseln, bevor es ins Netz geht
+  assert.ok(effektiveEinspeisungKw(0, voll, c) > 1);
 });

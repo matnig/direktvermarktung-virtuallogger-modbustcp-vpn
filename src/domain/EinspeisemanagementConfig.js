@@ -43,8 +43,11 @@ class EinspeisemanagementConfig {
     akkuFreigabeUebergangProzent = 5,    // linearer Übergang darunter (80..85 %), kein Sprung
     // Besseres Kriterium als der SoC, sofern die ladbare Energie (5025) gebunden ist: wie lange
     // der Akku die volle Ladeleistung noch aufnehmen kann. Es gilt das restriktivere der beiden.
-    akkuRestdauerSchwelleS = 60,         // darunter zählt der Akku nicht mehr als Puffer
-    akkuRestdauerUebergangS = 120,       // linearer Übergang darüber (60..180 s)
+    // Bemessung: der Regler fährt einen vollen 50-kW-Kredit mit maxSchrittKw (5 kW/s) in ~10 s
+    // zurück. 15 s Schwelle + 30 s Band (volle Freigabe ab 45 s Restdauer) ist dafür reichlich.
+    // Frühere 60/120 waren rund zehnmal zu konservativ und haben den Akku am Ende ausgebremst.
+    akkuRestdauerSchwelleS = 15,         // darunter zählt der Akku nicht mehr als Puffer
+    akkuRestdauerUebergangS = 30,        // linearer Übergang darüber (15..45 s)
     akkuReserveFaktor = 1,               // Anteil der Ladereserve, der angerechnet wird (Sicherheitsmarge)
     ueberschussToleranzMs = 5000,        // kurzer Überschuss (bis Akku-Ladegrenze) wird so lange ausgesessen
     // Annahme-Wache: die Ladereserve gilt nur, solange der Akku sie auch nutzt.

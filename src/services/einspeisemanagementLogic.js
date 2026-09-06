@@ -81,34 +81,32 @@ function akkuRestdauerS(akku, config) {
 //       ~5 min lang volle 50 kW ziehen und ist ein vollwertiger Puffer.
 //   (b) SoC-Schwelle: grobe Rückfallebene, wenn die ladbare Energie nicht gebunden ist.
 // Liegt keines der beiden Signale vor -> 0 (konservativ wie bisher).
+// Die Restdauer hat VORRANG, wenn sie vorliegt — sie ist die physikalisch richtige Groesse.
+// Sie zusaetzlich mit dem SoC zu verrechnen (Minimum) hiesse, das grobe Signal das genaue
+// ueberstimmen zu lassen: bei SoC 97,8 % und 1 kWh Restkapazitaet wuerde der SoC auf 0,44
+// deckeln, obwohl der Akku noch ueber eine Minute lang volle Leistung aufnehmen kann.
+// Gegen ein falsch meldendes Kapazitaetsregister sichert die Annahme-Wache ab, nicht der SoC.
 function akkuFreigabeFaktor(akku, config) {
   if (!akku || akku.verfuegbar === false) return 0;
-  const faktoren = [];
 
-  // (a) Restdauer
+  // (a) Restdauer — bevorzugt
   const restS = akkuRestdauerS(akku, config);
   if (restS !== null) {
     const schwelleS = Math.max(0, Number(config && config.akkuRestdauerSchwelleS) || 0);
     const bandS = Math.max(0, Number(config && config.akkuRestdauerUebergangS) || 0);
-    if (bandS <= 0) faktoren.push(restS > schwelleS ? 1 : 0);
-    else faktoren.push(clamp((restS - schwelleS) / bandS, 0, 1));
+    if (bandS <= 0) return restS > schwelleS ? 1 : 0;
+    return clamp((restS - schwelleS) / bandS, 0, 1);
   }
 
-  // (b) SoC — null/undefined NICHT als 0 lesen, sonst gäbe ein fehlendes SoC-Register
-  // volle Freigabe statt der sicheren konservativen Vorsteuerung.
-  if (akku.socProzent !== null && akku.socProzent !== undefined) {
-    const soc = Number(akku.socProzent);
-    const schwelle = Number(config && config.akkuFreigabeSocProzent);
-    if (Number.isFinite(soc) && Number.isFinite(schwelle)) {
-      const band = Math.max(0, Number(config && config.akkuFreigabeUebergangProzent) || 0);
-      faktoren.push(band <= 0
-        ? (soc < schwelle ? 1 : 0)
-        : clamp((schwelle - soc) / band, 0, 1));
-    }
-  }
-
-  if (!faktoren.length) return 0;
-  return Math.min(...faktoren);
+  // (b) SoC — Rueckfallebene ohne Kapazitaetsregister. null/undefined NICHT als 0 lesen,
+  // sonst gaebe ein fehlendes SoC-Register volle Freigabe statt konservativer Vorsteuerung.
+  if (akku.socProzent === null || akku.socProzent === undefined) return 0;
+  const soc = Number(akku.socProzent);
+  const schwelle = Number(config && config.akkuFreigabeSocProzent);
+  if (!Number.isFinite(soc) || !Number.isFinite(schwelle)) return 0;
+  const band = Math.max(0, Number(config && config.akkuFreigabeUebergangProzent) || 0);
+  if (band <= 0) return soc < schwelle ? 1 : 0;
+  return clamp((schwelle - soc) / band, 0, 1);
 }
 
 // --- 3b) Akku-Annahme-Wache: gilt die gutgeschriebene Ladereserve überhaupt noch? ---
