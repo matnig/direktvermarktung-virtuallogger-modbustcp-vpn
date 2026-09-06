@@ -10,6 +10,10 @@ function validateVirtualVariable(payload) {
   if (!DATA_TYPES.has(payload.dataType)) {
     errors.push(`dataType must be one of: ${[...DATA_TYPES].join(', ')}`);
   }
+  if (payload.deviceClass !== undefined && payload.deviceClass !== null
+      && typeof payload.deviceClass !== 'string') {
+    errors.push('deviceClass must be a string');
+  }
   if (payload.writable !== undefined && typeof payload.writable !== 'boolean') {
     errors.push('writable must be a boolean');
   }

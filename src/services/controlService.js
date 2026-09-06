@@ -17,6 +17,7 @@ const sourceRepository           = require('../repositories/sourceRepository');
 const registerRepository         = require('../repositories/registerRepository');
 const externalRegisterRepository = require('../repositories/externalRegisterRepository');
 const externalServerService      = require('./externalServerService');
+const emHaExportService          = require('./emHaExportService');
 const ModbusClient               = require('../modbus/modbusClient');
 const { encodeRegisterValue }    = require('../modbus/encodeRegisterValue');
 
@@ -241,6 +242,12 @@ function computeOnce() {
     inputsFehlen: fehlt,
     pRef100Kw: cfg.pRef100Kw,
   };
+
+  // Regelgrößen nach Home Assistant spiegeln (nur die Variablen, die es auch gibt).
+  // Darf den Regler niemals stören.
+  try { emHaExportService.publishStatus(_state); }
+  catch (e) { console.warn('[controlService] HA-Export:', e.message); }
+
   return _state;
 }
 

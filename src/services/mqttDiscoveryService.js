@@ -87,7 +87,10 @@ function buildDiscoveryPayload(config, variable) {
 
   if (variable.unit) payload.unit_of_measurement = variable.unit;
 
-  const dc = inferDeviceClass(variable.unit);
+  // Explizite Angabe schlaegt die Ableitung aus der Einheit: '%' waere sonst z. B. immer
+  // "humidity" — fuer einen Akku-SoC falsch. 'none' unterdrueckt die device_class ganz.
+  const explizit = (variable.deviceClass || '').trim();
+  const dc = explizit === 'none' ? null : (explizit || inferDeviceClass(variable.unit));
   if (dc) payload.device_class = dc;
 
   if (type === 'sensor') {
@@ -218,6 +221,7 @@ function onVariableChanged(variableId, oldVariable, newVariable) {
     const propsChanged = oldVariable.name !== newVariable.name
       || oldVariable.label !== newVariable.label
       || oldVariable.unit !== newVariable.unit
+      || oldVariable.deviceClass !== newVariable.deviceClass
       || oldVariable.dataType !== newVariable.dataType
       || oldVariable.writable !== newVariable.writable;
 

@@ -5,6 +5,7 @@ class VirtualVariable {
     label        = '',
     dataType     = 'float32',
     unit         = '',
+    deviceClass  = '',      // '' = aus der Einheit ableiten, 'none' = bewusst keine
     writable     = true,
     enabled      = true,
     haEnabled    = false,
@@ -18,6 +19,7 @@ class VirtualVariable {
     this.label        = String(label || '');
     this.dataType     = dataType;
     this.unit         = String(unit || '');
+    this.deviceClass  = String(deviceClass || '');
     this.writable     = writable !== false;
     this.enabled      = enabled !== false;
     this.haEnabled    = !!haEnabled;

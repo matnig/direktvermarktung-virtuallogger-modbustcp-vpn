@@ -924,6 +924,13 @@
             <input type="checkbox" name="aktuierungAktiv" id="em-aktuierung-chk" style="width:auto;margin:0;" />
             <span data-i18n="em.aktuierungAktiv" style="font-weight:600;">Enable actuation</span>
           </label>
+          <div style="margin-top:10px;padding:8px 10px;background:#f4f6f8;border-radius:4px;">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+              <button type="button" id="em-ha-export-btn" data-i18n="em.haExport" style="width:auto;padding:6px 14px;">Publish to Home Assistant</button>
+              <span id="em-ha-export-status" class="hint" style="margin:0;"></span>
+            </div>
+            <p class="hint" data-i18n="em.haExportHint" style="margin:6px 0 0;">Creates the control values as MQTT sensors with Home Assistant auto-discovery, so they are recorded in long-term statistics.</p>
+          </div>
           <p class="hint" data-i18n="em.aktuierungWarn" style="color:#856404;background:#fff3cd;border-left:3px solid #ffc107;padding:6px 10px;border-radius:4px;">Danger: writes to inverter.</p>
           <button type="submit" data-i18n="em.save" style="width:auto;padding:8px 20px;">Save</button>
         </form>
@@ -2653,6 +2660,19 @@
       }
 
       // ── Einspeisemanagement ───────────────────────────────────────
+      async function emHaExport() {
+        const el = document.getElementById('em-ha-export-status');
+        try {
+          if (el) el.textContent = '...';
+          const r = await fetch('/api/einspeisemanagement/ha-export', { method: 'POST' });
+          const d = await r.json();
+          if (!r.ok) throw new Error(d.error || 'HTTP ' + r.status);
+          if (el) el.textContent = t('em.haExportOk')
+            .replace('{neu}', d.angelegt.length)
+            .replace('{gesamt}', d.gesamt);
+        } catch (err) { if (el) el.textContent = String(err.message || err); }
+      }
+
       const EM_NUM_FIELDS = [
         'pRef100Kw', 'akkuMaxLadeleistungKw', 'aqSkalaMaxKw',
         'wrSollwertMinKw', 'wrSollwertMaxKw', 'totbandKw',
@@ -2784,6 +2804,8 @@
           await refreshEinspeisemanagement();
         } catch (err) { showAlert(errorMessage(err), 'error'); setDebug(err); }
       });
+
+      document.getElementById('em-ha-export-btn').addEventListener('click', emHaExport);
 
       document.getElementById('em-bindings-form').addEventListener('submit', async (e) => {
         e.preventDefault();
