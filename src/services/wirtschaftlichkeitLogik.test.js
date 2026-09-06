@@ -93,3 +93,57 @@ test('ohne Ertrag gibt es keine Amortisation statt einer negativen Zahl', () => 
   assert.strictEqual(r.amortisationJahre, null);
   assert.ok(r.barwertEur < 0);
 });
+
+// --- Zeiten ohne Einspeiseerloes ---
+
+test('an Nullpreis-Zeiten kostet verlagerte Einspeisung keinen entgangenen Erloes', () => {
+  const sim = {
+    bezugAltKwh: 1000, bezugNeuKwh: 900, einspeisungAltKwh: 1000, einspeisungNeuKwh: 890,
+    verschobenKwh: 100, wenigerEinspeisungKwh: 110,
+    einspeisungAltNullKwh: 1000, einspeisungNeuNullKwh: 890,   // alles im Nullpreis-Fenster
+    geladenKwh: 110, entladenKwh: 100, vollzyklen: 1,
+  };
+  const preise = { bezugspreisEurProKwh: 0.23, ertragDirektvermarktungEurProKwh: 0.08,
+                   nullpreisVerguetungEurProKwh: 0 };
+  const r = bewerte(sim, preise, { betriebskostenProzentProJahr: 0, jahresfaktor: 1 });
+  assert.ok(Math.abs(r.gewinnVerschiebungEur - 23) < 1e-6,
+    `volle 100 x 0,23 erwartet, war ${r.gewinnVerschiebungEur}`);
+  assert.strictEqual(r.wenigerEinspeisungNormalKwh, 0);
+});
+
+test('ausserhalb der Nullpreis-Zeiten wird der entgangene Erloes weiterhin abgezogen', () => {
+  const sim = {
+    bezugAltKwh: 1000, bezugNeuKwh: 900, einspeisungAltKwh: 1000, einspeisungNeuKwh: 890,
+    verschobenKwh: 100, wenigerEinspeisungKwh: 110,
+    einspeisungAltNullKwh: 0, einspeisungNeuNullKwh: 0,
+    geladenKwh: 110, entladenKwh: 100, vollzyklen: 1,
+  };
+  const r = bewerte(sim, { bezugspreisEurProKwh: 0.23, ertragDirektvermarktungEurProKwh: 0.08 },
+    { betriebskostenProzentProJahr: 0, jahresfaktor: 1 });
+  assert.ok(Math.abs(r.gewinnVerschiebungEur - (23 - 8.8)) < 1e-6);
+});
+
+test('gemischt: nur der Nullpreis-Anteil bleibt ohne Abzug', () => {
+  const sim = {
+    bezugAltKwh: 1000, bezugNeuKwh: 900, einspeisungAltKwh: 1000, einspeisungNeuKwh: 890,
+    verschobenKwh: 100, wenigerEinspeisungKwh: 110,
+    einspeisungAltNullKwh: 500, einspeisungNeuNullKwh: 440,   // 60 der 110 im Nullpreis
+    geladenKwh: 110, entladenKwh: 100, vollzyklen: 1,
+  };
+  const r = bewerte(sim, { bezugspreisEurProKwh: 0.23, ertragDirektvermarktungEurProKwh: 0.08 },
+    { betriebskostenProzentProJahr: 0, jahresfaktor: 1 });
+  assert.strictEqual(r.wenigerEinspeisungNullpreisKwh, 60);
+  assert.strictEqual(r.wenigerEinspeisungNormalKwh, 50);
+  assert.ok(Math.abs(r.gewinnVerschiebungEur - (23 - 50 * 0.08)) < 1e-6);
+});
+
+test('Simulation zaehlt die Nullpreis-Einspeisung getrennt mit', () => {
+  const punkte = [...Array.from({ length: 48 }, (_, i) => [i * 900000, 0, 2]),
+                  ...Array.from({ length: 48 }, (_, i) => [(48 + i) * 900000, 2, 0])];
+  const flags = punkte.map((_, i) => i < 24);   // erste 24 Schritte im Nullpreis
+  const s = simuliereSpeicher(punkte, { kapazitaetKwh: 100, leistungKw: 100,
+    wirkungsgrad: 1, entladetiefe: 1, nullpreis: flags });
+  assert.strictEqual(s.einspeisungAltNullKwh, 48);          // 24 Schritte x 2 kWh
+  assert.ok(s.einspeisungNeuNullKwh < s.einspeisungAltNullKwh,
+    'der Speicher muss zuerst die fruehe Einspeisung aufnehmen');
+});

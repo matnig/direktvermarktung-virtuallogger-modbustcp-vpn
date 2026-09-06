@@ -23,6 +23,7 @@ function simuliereSpeicher(punkte, {
   entladetiefe = 0.9,        // nutzbarer Anteil der Nennkapazität
   messperiodeMin = 15,
   startSocAnteil = 0,        // LEER starten
+  nullpreis = null,          // Bool je Punkt: gilt hier ein Einspeiseerlös von ~0?
 } = {}) {
   const nutzbar = Math.max(0, kapazitaetKwh * entladetiefe);
   const proSchritt = leistungKw * (messperiodeMin / 60);
@@ -34,11 +35,17 @@ function simuliereSpeicher(punkte, {
 
   let bezugNeu = 0, einspeisungNeu = 0, geladen = 0, entladen = 0, vollzyklen = 0;
   let bezugAlt = 0, einspeisungAlt = 0;
+  // Einspeisung getrennt fuehren, die zu Zeiten mit wertlosem Netzpreis anfaellt:
+  // was dort nicht mehr eingespeist wird, kostet auch keinen entgangenen Erloes.
+  let einspeisungAltNull = 0, einspeisungNeuNull = 0;
 
-  for (const p of punkte) {
+  for (let i = 0; i < punkte.length; i++) {
+    const p = punkte[i];
+    const istNull = nullpreis ? Boolean(nullpreis[i]) : false;
     let bez = p[1] || 0;
     let ein = p[2] || 0;
     bezugAlt += bez; einspeisungAlt += ein;
+    if (istNull) einspeisungAltNull += ein;
 
     if (nutzbar > 0 && proSchritt > 0) {
       if (ein > 0) {
@@ -52,12 +59,14 @@ function simuliereSpeicher(punkte, {
       }
     }
     bezugNeu += bez; einspeisungNeu += ein;
+    if (istNull) einspeisungNeuNull += ein;
   }
   if (nutzbar > 0) vollzyklen = entladen / nutzbar;
 
   return {
     bezugAltKwh: bezugAlt, einspeisungAltKwh: einspeisungAlt,
     bezugNeuKwh: bezugNeu, einspeisungNeuKwh: einspeisungNeu,
+    einspeisungAltNullKwh: einspeisungAltNull, einspeisungNeuNullKwh: einspeisungNeuNull,
     geladenKwh: geladen, entladenKwh: entladen,
     verschobenKwh: entladen,                       // ersetzter Netzbezug
     wenigerEinspeisungKwh: einspeisungAlt - einspeisungNeu,
@@ -106,6 +115,7 @@ function bewerte(sim, preise = {}, invest = {}) {
     ertragDirektKundeEurProKwh: 0,
     ertragDirektvermarktungEurProKwh: 0,
     anteilDirektKundeProzent: 0,
+    nullpreisVerguetungEurProKwh: 0,   // Erlös in Zeiten mit wertlosem Netzpreis
     ...preise,
   };
   const i = {
@@ -122,8 +132,16 @@ function bewerte(sim, preise = {}, invest = {}) {
 
   // Der Speicher verlagert Einspeisung in Eigenverbrauch: gewonnen wird die
   // Differenz zwischen vermiedenem Bezug und dem entgangenen Einspeiseerlös.
+  //
+  // Entscheidend ist dabei, WANN die verlagerte Einspeisung angefallen waere. An
+  // Sommertagen mit hoher Erzeugung faellt der Boersenpreis auf null — was dort nicht
+  // mehr eingespeist wird, kostet keinen entgangenen Erloes, die verschobene
+  // Kilowattstunde ist dann den vollen Eigenverbrauchswert wert.
+  const wenigerNull = Math.max(0, (sim.einspeisungAltNullKwh || 0) - (sim.einspeisungNeuNullKwh || 0));
+  const wenigerNormal = Math.max(0, sim.wenigerEinspeisungKwh - wenigerNull);
   const gewinnVerschiebung = sim.verschobenKwh * p.bezugspreisEurProKwh
-    - sim.wenigerEinspeisungKwh * erloesJeEinspeisung;
+    - wenigerNormal * erloesJeEinspeisung
+    - wenigerNull * p.nullpreisVerguetungEurProKwh;
 
   // Zusätzliche PV erhöht beides: weniger Bezug und mehr Einspeisung.
   const mehrEigenverbrauch = Math.max(0, sim.bezugAltKwh - sim.bezugNeuKwh - sim.verschobenKwh);
@@ -151,6 +169,8 @@ function bewerte(sim, preise = {}, invest = {}) {
 
   return {
     erloesJeEinspeisungEurProKwh: erloesJeEinspeisung,
+    wenigerEinspeisungNormalKwh: wenigerNormal,
+    wenigerEinspeisungNullpreisKwh: wenigerNull,
     gewinnVerschiebungEur: gewinnVerschiebung,
     gewinnPvEur: gewinnPv,
     jahresertragEur,

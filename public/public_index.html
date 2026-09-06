@@ -390,6 +390,19 @@
             <label><span data-i18n="wi.akkuEta">Round-trip efficiency</span><input type="number" step="0.01" name="akkuWirkungsgrad" /></label>
           </div>
 
+          <label style="display:flex;align-items:center;gap:8px;margin-top:14px;">
+            <input type="checkbox" name="nullpreisAktiv" style="width:auto;margin:0;" />
+            <span data-i18n="wi.nullpreis">Summer days without feed-in revenue</span>
+          </label>
+          <div class="row">
+            <label><span data-i18n="wi.nullpreisVon">From (MM-DD)</span><input type="text" name="nullpreisVonTag" placeholder="05-25" /></label>
+            <label><span data-i18n="wi.nullpreisBis">To (MM-DD)</span><input type="text" name="nullpreisBisTag" placeholder="09-15" /></label>
+          </div>
+          <div class="row">
+            <label><span data-i18n="wi.nullpreisSchwelle">Only days above (kWh export)</span><input type="number" step="10" name="nullpreisAbTagesEinspeisungKwh" /></label>
+            <label><span data-i18n="wi.nullpreisVerguetung">Revenue then (€/kWh)</span><input type="number" step="0.001" name="nullpreisVerguetungEurProKwh" /></label>
+          </div>
+
           <h3 style="margin-top:16px;" data-i18n="wi.gruppe.zusatz">Displaceable generation</h3>
           <div class="row">
             <label><span data-i18n="wi.zusatzlast">Series (e.g. CHP)</span><select name="zusatzlastId" id="wi-zusatzlast-select"></select></label>
@@ -3845,7 +3858,7 @@
         'akkuNeuLeistungKw', 'akkuNeuKostenEurProKwh', 'akkuWirkungsgrad', 'pvErweiterungKwp',
         'pvKostenEurProKwp', 'spezifischerErtragKwhProKwp', 'sonstigeKostenEur',
         'betriebskostenProzentProJahr', 'betrachtungsjahreJahre', 'kalkulationszinsProzent',
-        'zusatzlastKostenEurProKwh',
+        'zusatzlastKostenEurProKwh', 'nullpreisAbTagesEinspeisungKwh', 'nullpreisVerguetungEurProKwh',
       ];
 
       const eur = (v) => (v == null || !Number.isFinite(v)) ? '—'
@@ -3858,6 +3871,9 @@
         const out = {
           lastgangId: f.elements['lastgangId'].value || null,
           zusatzlastId: f.elements['zusatzlastId'].value || null,
+          nullpreisAktiv: f.elements['nullpreisAktiv'].checked,
+          nullpreisVonTag: f.elements['nullpreisVonTag'].value || '05-25',
+          nullpreisBisTag: f.elements['nullpreisBisTag'].value || '09-15',
         };
         WI_FELDER.forEach((k) => {
           const v = Number(f.elements[k].value);
@@ -3873,6 +3889,9 @@
           WI_FELDER.forEach((k) => { if (f.elements[k]) f.elements[k].value = cfg[k]; });
           await wiLadeLastgaenge(cfg.lastgangId);
           if (cfg.zusatzlastId) f.elements['zusatzlastId'].value = cfg.zusatzlastId;
+          f.elements['nullpreisAktiv'].checked = !!cfg.nullpreisAktiv;
+          f.elements['nullpreisVonTag'].value = cfg.nullpreisVonTag || '';
+          f.elements['nullpreisBisTag'].value = cfg.nullpreisBisTag || '';
         } catch (err) { setDebug(err); }
       }
 
@@ -3921,6 +3940,7 @@
             ${z('wi.e.zyklen', (e.vollzyklen * jf).toFixed(0) + ' /a')}
             ${d.zusatzlastKwh ? z('wi.e.zusatzlast', kwh(d.zusatzlastKwh * jf) + ' /a') : ''}
             ${d.wertVerdraengtEurProKwh ? z('wi.e.wertVerdraengt', d.wertVerdraengtEurProKwh.toFixed(3) + ' €/kWh') : ''}
+            ${d.nullpreisTage ? z('wi.e.nullpreisTage', d.nullpreisTage + ' ' + t('wi.e.tage')) : ''}
           </div>
           <div class="ov-card">
             <h3>${esc(t('wi.e.geld'))}</h3>
@@ -4056,6 +4076,11 @@
         lastgangId: 'i.lastgangId',
         zusatzlastId: 'i.zusatzlastId',
         zusatzlastKostenEurProKwh: 'i.zusatzKosten',
+        nullpreisAktiv: 'i.nullpreisAktiv',
+        nullpreisVonTag: 'i.nullpreisFenster',
+        nullpreisBisTag: 'i.nullpreisFenster',
+        nullpreisAbTagesEinspeisungKwh: 'i.nullpreisSchwelle',
+        nullpreisVerguetungEurProKwh: 'i.nullpreisVerguetung',
         bezugspreisEurProKwh: 'i.bezugspreis',
         ertragDirektKundeEurProKwh: 'i.ertragKunde',
         ertragDirektvermarktungEurProKwh: 'i.ertragDv',

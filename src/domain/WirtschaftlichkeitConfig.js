@@ -10,6 +10,13 @@ class WirtschaftlichkeitConfig {
     ertragDirektvermarktungEurProKwh = 0.07,  // Direktvermarktung
     anteilDirektKundeProzent = 0,             // welcher Teil der Einspeisung an Kunden geht
 
+    // --- Zeiten ohne Einspeiseerlös (Sommer, hohe Erzeugung, Börsenpreis am Boden) ---
+    nullpreisAktiv = false,
+    nullpreisVonTag = '05-25',                // MM-TT
+    nullpreisBisTag = '09-15',
+    nullpreisAbTagesEinspeisungKwh = 200,     // nur Tage über dieser Einspeisung; 0 = alle
+    nullpreisVerguetungEurProKwh = 0,         // Erlös in diesen Zeiten
+
     // --- Speicher ---
     akkuBestandKwh = 65,                      // heutiger Speicher (Intilion, nutzbar)
     akkuBestandLeistungKw = 50,
@@ -43,6 +50,8 @@ class WirtschaftlichkeitConfig {
     Object.assign(this, {
       bezugspreisEurProKwh, ertragDirektKundeEurProKwh, ertragDirektvermarktungEurProKwh,
       anteilDirektKundeProzent,
+      nullpreisAktiv, nullpreisVonTag, nullpreisBisTag,
+      nullpreisAbTagesEinspeisungKwh, nullpreisVerguetungEurProKwh,
       akkuBestandKwh, akkuBestandLeistungKw, akkuVerkaufserloesEur,
       akkuNeuKwh, akkuNeuLeistungKw, akkuNeuKostenEurProKwh,
       akkuWirkungsgrad, akkuEntladetiefe,

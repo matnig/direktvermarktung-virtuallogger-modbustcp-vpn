@@ -92,12 +92,43 @@ function rechne(ueberschreibungen = {}) {
       + 'zusätzliche Verschiebung gerechnet.');
   }
 
+  // Zeiten ohne Einspeiseerlös bestimmen: Tage im gewählten Fenster, deren Einspeisung
+  // über der Schwelle liegt. Bewusst tageweise — der Börsenpreis bricht an ganzen
+  // Strahlungstagen ein, nicht an einzelnen Viertelstunden.
+  let nullpreis = null;
+  let nullpreisTage = 0;
+  if (cfg.nullpreisAktiv) {
+    const tagesSumme = new Map();
+    const tagOf = (ts) => new Date(ts).toISOString().slice(0, 10);
+    for (const pt of punkte) {
+      const k = tagOf(pt[0]);
+      tagesSumme.set(k, (tagesSumme.get(k) || 0) + (pt[2] || 0));
+    }
+    const imFenster = (k) => {
+      const md = k.slice(5);
+      const von = String(cfg.nullpreisVonTag || '01-01');
+      const bis = String(cfg.nullpreisBisTag || '12-31');
+      return von <= bis ? (md >= von && md <= bis) : (md >= von || md <= bis);
+    };
+    const schwelle = Number(cfg.nullpreisAbTagesEinspeisungKwh) || 0;
+    const betroffen = new Set();
+    for (const [k, summe] of tagesSumme) {
+      if (imFenster(k) && summe >= schwelle) betroffen.add(k);
+    }
+    nullpreisTage = betroffen.size;
+    nullpreis = punkte.map((pt) => betroffen.has(tagOf(pt[0])));
+    annahmen.push(`An ${nullpreisTage} Tagen im Fenster ${cfg.nullpreisVonTag} bis `
+      + `${cfg.nullpreisBisTag} mit mehr als ${schwelle} kWh Einspeisung wird mit `
+      + `${cfg.nullpreisVerguetungEurProKwh} €/kWh Einspeiseerlös gerechnet.`);
+  }
+
   const sim = logik.simuliereSpeicher(punkte, {
     kapazitaetKwh: zusatzKapazitaet,
     leistungKw: cfg.akkuNeuLeistungKw,
     wirkungsgrad: cfg.akkuWirkungsgrad,
     entladetiefe: cfg.akkuEntladetiefe,
     messperiodeMin: meta.messperiodeMin || 15,
+    nullpreis,
   });
 
   // Mengengewichteter Wert einer verdrängten Kilowattstunde
@@ -111,6 +142,7 @@ function rechne(ueberschreibungen = {}) {
     ertragDirektKundeEurProKwh: cfg.ertragDirektKundeEurProKwh,
     ertragDirektvermarktungEurProKwh: cfg.ertragDirektvermarktungEurProKwh,
     anteilDirektKundeProzent: cfg.anteilDirektKundeProzent,
+    nullpreisVerguetungEurProKwh: cfg.nullpreisVerguetungEurProKwh,
   }, {
     akkuNeuKwh: cfg.akkuNeuKwh,
     akkuNeuKostenEurProKwh: cfg.akkuNeuKostenEurProKwh,
@@ -130,6 +162,7 @@ function rechne(ueberschreibungen = {}) {
     zusatzKapazitaetKwh: zusatzKapazitaet,
     zusatzlastKwh,
     wertVerdraengtEurProKwh: wertVerdraengt,
+    nullpreisTage,
     energie: sim,
     wirtschaft,
     annahmen,
