@@ -89,6 +89,7 @@ function getStatus() {
     port:        settings.port,
     enabled:     settings.enabled,
     clientCount: modbusServer.clientCount,
+    clients: modbusServer.clients,
     startedAt:   _state.startedAt,
     lastError:   _state.lastError,
   };

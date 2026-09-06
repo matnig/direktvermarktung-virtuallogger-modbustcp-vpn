@@ -3247,15 +3247,16 @@
 
       async function refreshOverview() {
         const hole = (url) => fetchJson(url).then((d) => d).catch(() => null);
-        const [rt, em, emCfg, bridge, mqtt, net, vpn, vars, extVals, sources, registers, mappings, wdogs, pubRules] =
+        const [rt, em, emCfg, bridge, mqtt, net, vpn, vars, extVals, sources, registers, mappings, wdogs, pubRules, bridgeStatus] =
           await Promise.all([
             hole('/api/runtime/status'), hole('/api/einspeisemanagement/status'),
             hole('/api/einspeisemanagement'), hole('/api/bridge/server/settings'), hole('/api/mqtt/status'),
             hole('/api/network/status'), hole('/api/vpn'), hole('/api/variables'),
             hole('/api/external-registers/values'), hole('/api/sources'), hole('/api/registers'),
             hole('/api/mappings'), hole('/api/watchdogs'), hole('/api/mqtt-publish-rules'),
+            hole('/api/bridge/status'),
           ]);
-        OV_DATA = { rt, em, emCfg, bridge, mqtt, net, vpn, vars, extVals, sources, registers, mappings, wdogs, pubRules };
+        OV_DATA = { rt, em, emCfg, bridge, mqtt, net, vpn, vars, extVals, sources, registers, mappings, wdogs, pubRules, bridgeStatus };
 
         // ── Betriebsparameter ──
         const karten = [];
@@ -3277,10 +3278,20 @@
           ['ov.p.pubRules', pubRules ? String(pubRules.length) : '—'],
         ]));
         if (bridge) {
-          karten.push(ovKarte('ov.card.bridge', [
+          const srv = (bridgeStatus && bridgeStatus.server) || {};
+          const clients = srv.clients || [];
+          const zeilen = [
             ['ov.p.enabled', bridge.enabled ? t('ov.yes') : t('ov.no')],
             ['ov.p.listen', `${bridge.host ?? '—'}:${bridge.port ?? '—'}`],
+            ['ov.p.clients', String(srv.clientCount ?? 0)],
+          ];
+          // Verbundene Gegenstellen einzeln: eine offene Verbindung heisst noch nicht, dass
+          // auch Sollwerte kommen — deshalb der Zeitpunkt des letzten SCHREIBzugriffs.
+          clients.slice(0, 4).forEach((c) => zeilen.push([
+            'ov.p.client',
+            `${c.address || '?'} · ${c.lastWriteAt ? t('ov.p.wrote') + ' ' + fmtTime(c.lastWriteAt) : t('ov.p.noWrite')}`,
           ]));
+          karten.push(ovKarte('ov.card.bridge', zeilen));
         }
         if (mqtt) {
           karten.push(ovKarte('ov.card.mqtt', [
@@ -3291,14 +3302,21 @@
           ]));
         }
         if (net || vpn) {
+          // Der Tunnel zum Direktvermarkter laeuft auf dem Host (systemd), nicht ueber die
+          // VPN-Funktion dieser Anwendung. Massgeblich ist deshalb das echte Tunnelinterface
+          // aus dem Netzwerkstatus; die eigene VPN-Funktion wird nur gezeigt, wenn sie
+          // ueberhaupt aktiviert ist — sonst stand hier "disabled", obwohl tun0 oben war.
+          const tunnelDa = net && net.vpnInterface;
           const vpnStatus = vpn && (vpn.state && typeof vpn.state === 'object' ? vpn.state.status : vpn.state);
           karten.push(ovKarte('ov.card.netzwerk', [
             net && ['ov.p.iface', String(net.interface || '—')],
             net && ['ov.p.ip', String(net.cidr || net.address || '—')],
             net && ['ov.p.gateway', String(net.gateway || '—')],
             net && ['ov.p.dns', (net.dns || []).join(', ') || '—'],
-            vpn && ['ov.p.vpn', String(vpnStatus || '—')],
-            (vpn && vpn.state && vpn.state.address) ? ['ov.p.vpnIp', String(vpn.state.address)] : null,
+            net && ['ov.p.tunnel', tunnelDa
+              ? `${net.vpnInterface} · ${net.vpnAddress || '—'}`
+              : t('ov.p.noTunnel')],
+            (vpn && vpn.enabled) ? ['ov.p.vpn', String(vpnStatus || '—')] : null,
           ].filter(Boolean)));
         }
         if (em) {
@@ -3315,6 +3333,11 @@
               ? ['ov.p.writeErrors', em.schreibFehler.join(', ')] : null,
             (em.inputsFehlen && em.inputsFehlen.length)
               ? ['ov.p.inputsMissing', em.inputsFehlen.join(', ')] : null,
+            (() => {
+              const wd = (bridgeStatus && bridgeStatus.watchdog) || {};
+              const erster = Object.values(wd)[0];
+              return erster ? ['ov.p.watchdog', `${erster.state} · ${fmtTime(erster.lastChangedAt)}`] : null;
+            })(),
           ].filter(Boolean)));
         }
         if (emCfg) {

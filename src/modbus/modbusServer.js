@@ -58,6 +58,23 @@ class ModbusServer {
   }
 
   get clientCount() { return this._clients.size; }
+
+  // Wer ist gerade verbunden? Beantwortet im Betrieb die Frage "haengt der Direktvermarkter dran?" —
+  // sonst sieht man nur eine nackte Anzahl und weiss nicht, ob sie den erwarteten Peer enthaelt.
+  get clients() {
+    const out = [];
+    for (const s of this._clients) {
+      out.push({
+        address: s.remoteAddress ? String(s.remoteAddress).replace(/^::ffff:/, '') : null,
+        port: s.remotePort || null,
+        connectedAt: s._mbConnectedAt || null,
+        lastRequestAt: s._mbLastRequestAt || null,
+        requestCount: s._mbRequests || 0,
+        lastWriteAt: s._mbLastWriteAt || null,
+      });
+    }
+    return out.sort((a, b) => String(a.address).localeCompare(String(b.address)));
+  }
   get listening()   { return !!(this._server && this._server.listening); }
 
   listen(host, port) {
@@ -65,6 +82,8 @@ class ModbusServer {
     return new Promise((resolve, reject) => {
       const srv = net.createServer((socket) => {
         this._clients.add(socket);
+        socket._mbConnectedAt = new Date().toISOString();
+        socket._mbRequests = 0;
         let buf = Buffer.alloc(0);
 
         socket.on('data', (chunk) => {
@@ -74,6 +93,14 @@ class ModbusServer {
             if (buf.length < frameLen) break;
             const frame = buf.slice(0, frameLen);
             buf = buf.slice(frameLen);
+            socket._mbRequests = (socket._mbRequests || 0) + 1;
+            socket._mbLastRequestAt = new Date().toISOString();
+            // Schreibende Funktionscodes gesondert vermerken: nur sie belegen, dass der
+            // Gegenpart wirklich Sollwerte liefert und nicht bloss die Verbindung offen haelt.
+            const fc = frame.length > 7 ? frame[7] : 0;
+            if (fc === 5 || fc === 6 || fc === 15 || fc === 16) {
+              socket._mbLastWriteAt = socket._mbLastRequestAt;
+            }
             try { this._handle(frame, socket); } catch { /* isolate per frame */ }
           }
         });
