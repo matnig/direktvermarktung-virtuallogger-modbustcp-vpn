@@ -7,6 +7,7 @@ const {
   effektiveEinspeisungKw,
   akkuReserveKw,
   akkuFreigabeFaktor,
+  akkuRestdauerS,
   akkuBetriebsbereit,
   akkuAnnahmeWache,
   reglerSchritt,
@@ -385,4 +386,55 @@ test('Wache greift auch bei teilweiser Annahme (Akku nimmt zu wenig ab)', () => 
   const v = laufen(c, () => traege, () => 8, 15, 125);
   assert.strictEqual(v[10].gesperrt, true);
   assert.ok(v[14].soll < 125);
+});
+
+// --- Restdauer-Kriterium: der Akku bleibt bis kurz vor voll ein echter Puffer ---
+
+test('Restdauer aus ladbarer Energie und Ladegrenze', () => {
+  const c = cfg();
+  // echter Feldwert 06.09. bei SoC 93,9 %: 4 kWh Restkapazitaet, 50 kW Ladegrenze
+  const akku = { verfuegbar: true, socProzent: 93.9, ladeleistungKw: 5,
+                 maxLadeleistungKw: 50, ladbareEnergieKwh: 4 };
+  assert.ok(Math.abs(akkuRestdauerS(akku, c) - 288) < 1e-6);
+});
+
+test('SoC 94 % mit 4 kWh Restkapazitaet: voller Puffer statt Ausbremsen', () => {
+  // Genau der Fall, der den Akku am Ende ausgebremst hat: SoC weit ueber der alten 85-%-Schwelle,
+  // aber physikalisch noch ~5 min lang voll aufnahmefaehig.
+  // Betriebseinstellung auf .29: SoC nur noch als Rueckfallebene ueber die letzten 5 %
+  const c = cfg({ akkuFreigabeSocProzent: 100, akkuFreigabeUebergangProzent: 5 });
+  const akku = { verfuegbar: true, socProzent: 93.9, ladeleistungKw: 5,
+                 maxLadeleistungKw: 50, ladbareEnergieKwh: 4 };
+  assert.strictEqual(akkuFreigabeFaktor(akku, c), 1);
+  assert.strictEqual(effektiveEinspeisungKw(0, akku, c), -45); // Reserve 45 kW wird angerechnet
+});
+
+test('Akku fast voll: Freigabe blendet ueber die Restdauer aus', () => {
+  // SoC-Kriterium hier bewusst neutral, damit nur die Restdauer wirkt
+  const c = cfg({ akkuFreigabeSocProzent: 100, akkuFreigabeUebergangProzent: 0 });
+  const bei = (kwh) => akkuFreigabeFaktor(
+    { verfuegbar: true, socProzent: 96, ladeleistungKw: 0, maxLadeleistungKw: 50, ladbareEnergieKwh: kwh }, c);
+  assert.strictEqual(bei(2.5), 1);     // 180 s -> voll
+  assert.strictEqual(bei(5 / 3), 0.5); // 120 s -> halb
+  assert.strictEqual(bei(5 / 6), 0);   //  60 s -> aus
+  assert.strictEqual(bei(0), 0);       // voll  -> aus
+});
+
+test('restriktiveres Kriterium gewinnt: SoC-Schwelle bremst trotz Restkapazitaet', () => {
+  const c = cfg({ akkuFreigabeSocProzent: 85 }); // alte Schwelle
+  const akku = { verfuegbar: true, socProzent: 90, ladeleistungKw: 0,
+                 maxLadeleistungKw: 50, ladbareEnergieKwh: 10 };
+  assert.strictEqual(akkuFreigabeFaktor(akku, c), 0); // SoC sperrt, obwohl Restdauer reichlich
+});
+
+test('ladbare Energie nicht gebunden: SoC bleibt Rueckfallebene', () => {
+  const c = cfg();
+  const akku = { verfuegbar: true, socProzent: 50, ladeleistungKw: 10, maxLadeleistungKw: 50 };
+  assert.strictEqual(akkuFreigabeFaktor(akku, c), 1);
+});
+
+test('weder SoC noch ladbare Energie: keine Freigabe', () => {
+  const c = cfg();
+  const akku = { verfuegbar: true, ladeleistungKw: 10, maxLadeleistungKw: 50 };
+  assert.strictEqual(akkuFreigabeFaktor(akku, c), 0);
 });

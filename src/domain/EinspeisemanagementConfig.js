@@ -41,6 +41,10 @@ class EinspeisemanagementConfig {
     // echte Aufnahmefähigkeit -> Überschuss in dieser Höhe wird NICHT weggedrosselt.
     akkuFreigabeSocProzent = 85,         // ab hier zählt der Akku nicht mehr als Puffer
     akkuFreigabeUebergangProzent = 5,    // linearer Übergang darunter (80..85 %), kein Sprung
+    // Besseres Kriterium als der SoC, sofern die ladbare Energie (5025) gebunden ist: wie lange
+    // der Akku die volle Ladeleistung noch aufnehmen kann. Es gilt das restriktivere der beiden.
+    akkuRestdauerSchwelleS = 60,         // darunter zählt der Akku nicht mehr als Puffer
+    akkuRestdauerUebergangS = 120,       // linearer Übergang darüber (60..180 s)
     akkuReserveFaktor = 1,               // Anteil der Ladereserve, der angerechnet wird (Sicherheitsmarge)
     ueberschussToleranzMs = 5000,        // kurzer Überschuss (bis Akku-Ladegrenze) wird so lange ausgesessen
     // Annahme-Wache: die Ladereserve gilt nur, solange der Akku sie auch nutzt.
@@ -67,6 +71,7 @@ class EinspeisemanagementConfig {
       akkuSocRegisterId: null,          // Intilion 5002 SoC (%)
       akkuLadeleistungRegisterId: null, // Intilion 5040 Wirkleistung System (neg=laden)
       akkuMaxLadeRegisterId: null,      // Intilion 5027 Max Ladeleistung (kW)
+      akkuLadbareEnergieRegisterId: null, // Intilion 5025 Ladbare Energie (kWh) — Restdauer-Kriterium
       akkuSystemmodusRegisterId: null,  // Intilion 5016 Systemmodus (Annahme-Wache; null = Prüfung inaktiv)
       akkuBetriebszustandRegisterId: null, // Intilion 5056 Betriebszustand (Annahme-Wache)
       logoSourceId: null,               // LOGO Quelle (für Aktuierung)
@@ -102,6 +107,8 @@ class EinspeisemanagementConfig {
     this.akkuVorsteuerung = akkuVorsteuerung;
     this.akkuFreigabeSocProzent = akkuFreigabeSocProzent;
     this.akkuFreigabeUebergangProzent = akkuFreigabeUebergangProzent;
+    this.akkuRestdauerSchwelleS = akkuRestdauerSchwelleS;
+    this.akkuRestdauerUebergangS = akkuRestdauerUebergangS;
     this.akkuReserveFaktor = akkuReserveFaktor;
     this.ueberschussToleranzMs = ueberschussToleranzMs;
     this.akkuReaktionszeitMs = akkuReaktionszeitMs;
@@ -122,6 +129,7 @@ class EinspeisemanagementConfig {
       akkuSocRegisterId: null,
       akkuLadeleistungRegisterId: null,
       akkuMaxLadeRegisterId: null,
+      akkuLadbareEnergieRegisterId: null,
       akkuSystemmodusRegisterId: null,
       akkuBetriebszustandRegisterId: null,
       logoSourceId: null,

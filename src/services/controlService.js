@@ -101,6 +101,7 @@ function computeOnce() {
     socProzent: readRegister(b.akkuSocRegisterId),
     ladeleistungKw: ladeReg == null ? null : Math.max(0, -ladeReg),
     maxLadeleistungKw: readRegister(b.akkuMaxLadeRegisterId),
+    ladbareEnergieKwh: readRegister(b.akkuLadbareEnergieRegisterId),
     // Statusregister für die Annahme-Wache (optional; nicht gebunden = keine Aussage)
     systemmodus: readRegister(b.akkuSystemmodusRegisterId),
     betriebszustand: readRegister(b.akkuBetriebszustandRegisterId),
@@ -227,6 +228,7 @@ function computeOnce() {
     drosselAktiv,
     akkuReserveKw: logic.akkuReserveKw(akku, cfg),
     akkuFreigabeFaktor: logic.akkuFreigabeFaktor(akku, cfg),
+    akkuRestdauerS: logic.akkuRestdauerS(akku, cfg),
     akkuBetriebsbereit: logic.akkuBetriebsbereit(akku, cfg),
     akkuSperre: regler ? regler.akkuSperre : null,
     wrSollwertKw: _wrSollwertKw,

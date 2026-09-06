@@ -35,6 +35,8 @@ function validateEinspeisemanagement(payload = {}) {
   numRange('akkuFreigabeUebergangProzent', 0, 100);
   numRange('akkuReserveFaktor', 0, 1);
   numRange('ueberschussToleranzMs', 0, 60000);
+  numRange('akkuRestdauerSchwelleS', 0, 86400);
+  numRange('akkuRestdauerUebergangS', 0, 86400);
   numRange('akkuReaktionszeitMs', 0, 600000);
   numRange('akkuMindestLadeleistungKw', 0, 10000);
   numRange('akkuSperreWiederholungMs', 0, 3600000);
@@ -87,7 +89,8 @@ function validateEinspeisemanagement(payload = {}) {
       const idKeys = [
         'direktvermarkterVariableId', 'kontaktI1RegisterId', 'kontaktI2RegisterId',
         'kontaktI3RegisterId', 'akkuSocRegisterId', 'akkuLadeleistungRegisterId',
-        'akkuMaxLadeRegisterId', 'akkuSystemmodusRegisterId', 'akkuBetriebszustandRegisterId',
+        'akkuMaxLadeRegisterId', 'akkuLadbareEnergieRegisterId',
+        'akkuSystemmodusRegisterId', 'akkuBetriebszustandRegisterId',
         'logoSourceId', 'aq3TargetRegisterId',
         'pIstSourceRegisterId', 'strahlungOstVariableId', 'strahlungWestVariableId',
         'pKannTargetRegisterId', 'pIstTargetRegisterId',
