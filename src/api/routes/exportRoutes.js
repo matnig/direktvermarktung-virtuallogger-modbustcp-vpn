@@ -7,7 +7,8 @@ const router = express.Router();
 // vpn_secrets intentionally excluded; mqtt password included (documented limitation)
 const COLLECTIONS = ['sources', 'registers', 'profiles', 'settings', 'vpn',
   'external_registers', 'mappings', 'watchdogs',
-  'virtual_variables', 'mqtt_subscriptions', 'mqtt_publish_rules', 'mqtt_config'];
+  'virtual_variables', 'mqtt_subscriptions', 'mqtt_publish_rules', 'mqtt_config',
+  'dashboard'];
 
 router.get('/', (req, res) => {
   const snapshot = {};

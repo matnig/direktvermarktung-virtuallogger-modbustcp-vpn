@@ -47,6 +47,31 @@
       .err { color: #dc3545; }
       .no-data { padding: 16px; color: #888; font-size: 13px; }
 
+      /* navigation + uebersicht */
+      .nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 22px; padding-bottom: 12px; border-bottom: 2px solid #e6e6e6; }
+      .nav-btn { width: auto; padding: 8px 14px; margin: 0; border: 1px solid #ccc; background: #fff; border-radius: 6px; font-size: 14px; }
+      .nav-btn:hover { background: #f2f6ff; }
+      .nav-btn.active { background: #4285f4; border-color: #4285f4; color: #fff; font-weight: 600; }
+      .view[hidden] { display: none; }
+      .ov-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 14px; }
+      .ov-card { border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px 14px; background: #fafbfc; }
+      .ov-card h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: #555; }
+      .ov-row { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; padding: 3px 0; border-bottom: 1px solid #eef0f2; }
+      .ov-row:last-child { border-bottom: none; }
+      .ov-row > span:last-child { font-weight: 600; text-align: right; }
+      .ov-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(205px, 1fr)); gap: 12px; }
+      .ov-tile { border: 1px solid #e0e0e0; border-radius: 8px; padding: 10px 12px; background: #fff; }
+      .ov-tile .t-name { font-size: 12px; color: #666; margin-bottom: 4px; }
+      .ov-tile .t-src { font-size: 11px; color: #999; }
+      .ov-tile .t-val { font-size: 21px; font-weight: 600; line-height: 1.2; }
+      .ov-tile .t-unit { font-size: 13px; font-weight: 400; color: #666; margin-left: 3px; }
+      .ov-tile.t-err { border-color: #f5c6cb; background: #fff8f8; }
+      .ov-pick-group { margin-top: 14px; }
+      .ov-pick-group h4 { margin: 0 0 6px; font-size: 13px; color: #444; }
+      .ov-pick-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 4px 16px; max-height: 260px; overflow: auto; border: 1px solid #eee; border-radius: 6px; padding: 8px; }
+      .ov-pick-list label { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 13px; }
+      .ov-pick-list input[type=checkbox] { width: auto; margin: 0; }
+
       /* lang switcher */
       .lang-btn { padding: 4px 10px !important; font-size: 13px !important; border: 1px solid #ccc; background: #fff; }
       .lang-btn.active { font-weight: bold; background: #e8f0fe; border-color: #4285f4; }
@@ -148,6 +173,59 @@
       </div>
     </div>
 
+    <!-- ── Navigation ──────────────────────────────────────────────── -->
+    <nav class="nav" id="main-nav">
+      <button class="nav-btn active" data-view="uebersicht" data-i18n="nav.uebersicht">Overview</button>
+      <button class="nav-btn" data-view="runtime" data-i18n="nav.runtime">Live values</button>
+      <button class="nav-btn" data-view="quellen" data-i18n="nav.quellen">Sources &amp; registers</button>
+      <button class="nav-btn" data-view="extreg" data-i18n="nav.extreg">External registers</button>
+      <button class="nav-btn" data-view="mappings" data-i18n="nav.mappings">Mappings</button>
+      <button class="nav-btn" data-view="variablen" data-i18n="nav.variablen">Variables</button>
+      <button class="nav-btn" data-view="watchdogs" data-i18n="nav.watchdogs">Watchdogs</button>
+      <button class="nav-btn" data-view="mqtt" data-i18n="nav.mqtt">MQTT</button>
+      <button class="nav-btn" data-view="einspeisemanagement" data-i18n="nav.em">Feed-in management</button>
+      <button class="nav-btn" data-view="bridge" data-i18n="nav.bridge">Bridge server</button>
+      <button class="nav-btn" data-view="netzwerk" data-i18n="nav.netzwerk">Network &amp; VPN</button>
+      <button class="nav-btn" data-view="testmodus" data-i18n="nav.testmodus">Test mode</button>
+      <button class="nav-btn" data-view="update" data-i18n="nav.update">Update</button>
+      <button class="nav-btn" data-view="debug" data-i18n="nav.debug">Debug</button>
+    </nav>
+
+    <!-- ── Übersicht ───────────────────────────────────────────────── -->
+    <div class="view" id="view-uebersicht">
+      <div class="panel" style="margin-bottom:24px;">
+        <div class="rt-header">
+          <h2 data-i18n="ov.params.title">Operating parameters</h2>
+          <span id="ov-updated" class="rt-meta hint"></span>
+        </div>
+        <div id="ov-params" class="ov-cards"><p class="no-data hint" data-i18n="runtime.loading">Loading…</p></div>
+      </div>
+
+      <div class="panel">
+        <div class="rt-header">
+          <h2 data-i18n="ov.live.title">Live data</h2>
+          <span id="ov-live-count" class="hint"></span>
+          <button id="ov-picker-btn" style="width:auto;padding:6px 14px;margin-left:auto;" data-i18n="ov.pick.open">Select values</button>
+        </div>
+        <div id="ov-live" class="ov-tiles"></div>
+        <p id="ov-live-empty" class="hint" data-i18n="ov.live.empty" hidden>No values selected yet — use “Select values”.</p>
+      </div>
+
+      <div class="panel" id="ov-picker" style="margin-top:24px;" hidden>
+        <h2 data-i18n="ov.pick.title">Select displayed values</h2>
+        <p class="hint" data-i18n="ov.pick.hint">The selection is stored on the server and is part of the exportable configuration, so it travels with export/import.</p>
+        <label style="max-width:340px;"><span data-i18n="ov.pick.start">Start view</span>
+          <select id="ov-start-view"></select></label>
+        <div id="ov-picker-groups"></div>
+        <div class="toolbar" style="margin-top:16px;">
+          <button id="ov-picker-save" data-i18n="ov.pick.save">Save selection</button>
+          <button id="ov-picker-close" style="background:#fff;" data-i18n="ov.pick.close">Close</button>
+          <span id="ov-picker-status" class="hint"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="view" id="view-runtime" hidden>
     <!-- ── Runtime live view ───────────────────────────────────────── -->
     <div class="panel" style="margin-bottom:24px;">
       <div class="rt-header">
@@ -159,6 +237,8 @@
       <div id="runtime-sources"><p class="no-data hint" data-i18n="runtime.loading">Loading…</p></div>
     </div>
 
+    </div>
+    <div class="view" id="view-quellen" hidden>
     <!-- ── Config forms ────────────────────────────────────────────── -->
     <div class="grid-3">
       <form id="source-form">
@@ -242,6 +322,8 @@
       <button id="apply-profile-btn" style="width:auto;padding:8px 20px;margin-top:12px;" data-i18n="apply.button">Apply profile</button>
     </div>
 
+    </div>
+    <div class="view" id="view-netzwerk" hidden>
     <!-- ── VPN Settings ──────────────────────────────────────────── -->
     <div class="panel" style="margin-top:24px;">
       <h2 data-i18n="vpn.title">VPN Settings</h2>
@@ -414,6 +496,8 @@
       </table>
     </div>
 
+    </div>
+    <div class="view" id="view-bridge" hidden>
     <!-- ── Bridge: External Modbus Server ───────────────────────── -->
     <div class="panel" style="margin-top:24px;">
       <h2 data-i18n="bridge.title">Bridge</h2>
@@ -453,6 +537,8 @@
       </div>
     </div>
 
+    </div>
+    <div class="view" id="view-extreg" hidden>
     <!-- ── External Registers ─────────────────────────────────────── -->
     <div class="grid" style="margin-top:24px;">
       <form id="extreg-form">
@@ -511,6 +597,8 @@
       </table>
     </div>
 
+    </div>
+    <div class="view" id="view-mappings" hidden>
     <!-- ── Mappings ───────────────────────────────────────────────── -->
     <div class="grid" style="margin-top:24px;">
       <form id="mapping-form">
@@ -650,6 +738,8 @@
       </div>
     </div>
 
+    </div>
+    <div class="view" id="view-watchdogs" hidden>
     <!-- ── Watchdogs ──────────────────────────────────────────────── -->
     <div class="grid" style="margin-top:24px;">
       <form id="watchdog-form">
@@ -678,6 +768,8 @@
       </div>
     </div>
 
+    </div>
+    <div class="view" id="view-variablen" hidden>
     <!-- ── Virtual Variables ────────────────────────────────────── -->
     <div class="grid" style="margin-top:24px;">
       <form id="var-form">
@@ -719,6 +811,8 @@
       </div>
     </div>
 
+    </div>
+    <div class="view" id="view-mqtt" hidden>
     <!-- ── MQTT ──────────────────────────────────────────────────── -->
     <div class="grid" style="margin-top:24px;">
       <form id="mqtt-config-form">
@@ -852,6 +946,8 @@
       </div>
     </div>
 
+    </div>
+    <div class="view" id="view-einspeisemanagement" hidden>
     <!-- ── Einspeisemanagement (Drosselung) ─────────────────────────── -->
     <div class="panel" style="margin-top:24px;">
       <div class="rt-header">
@@ -974,6 +1070,8 @@
       </div>
     </div>
 
+    </div>
+    <div class="view" id="view-testmodus" hidden>
     <!-- ── Test-Modus: manuell schreiben ────────────────────────────── -->
     <div class="panel" style="margin-top:24px;">
       <h2 data-i18n="tw.title">Test mode — manual write</h2>
@@ -996,6 +1094,8 @@
       <pre id="tw-result" style="margin-top:10px;display:none;"></pre>
     </div>
 
+    </div>
+    <div class="view" id="view-update" hidden>
     <!-- ── Software update ──────────────────────────────────────────── -->
     <div class="panel" style="margin-top:24px;">
       <div class="rt-header">
@@ -1014,12 +1114,15 @@
       <pre id="update-log" style="margin-top:10px;display:none;max-height:220px;overflow:auto;"></pre>
     </div>
 
+    </div>
+    <div class="view" id="view-debug" hidden>
     <!-- ── Debug output ───────────────────────────────────────────── -->
     <div class="panel" style="margin-top:24px;">
       <h2 data-i18n="debug.title">Debug output</h2>
       <pre id="debug"></pre>
     </div>
 
+    </div>
     <script>
       // ── i18n ──────────────────────────────────────────────────────
       let currentLang = localStorage.getItem('mb-lang') || 'en';
@@ -1057,6 +1160,9 @@
         refreshVariables().catch(() => {});
         refreshMqtt().catch(() => {});
         refreshEinspeisemanagement().catch(() => {});
+        // Übersicht und Picker werden zur Laufzeit aus t() aufgebaut -> neu rendern,
+        // sonst bleiben Kartentitel und Kachelnamen in der alten Sprache stehen.
+        if (typeof refreshOverview === 'function') refreshOverview().catch(() => {});
       }
 
       // ── DOM refs ──────────────────────────────────────────────────
@@ -3065,6 +3171,294 @@
         refreshNetwork().catch(setDebug);
       });
 
+
+      // ── Navigation & Übersicht ────────────────────────────────────
+      // Die Anzeige-Auswahl liegt bewusst auf dem Server (Collection "dashboard") und nicht im
+      // localStorage: sie ist Teil der Anlagenkonfiguration und wandert über Export/Import mit.
+
+      const VIEWS = [
+        'uebersicht', 'runtime', 'quellen', 'extreg', 'mappings', 'variablen', 'watchdogs',
+        'mqtt', 'einspeisemanagement', 'bridge', 'netzwerk', 'testmodus', 'update', 'debug',
+      ];
+      const VIEW_LABEL_KEY = {
+        uebersicht: 'nav.uebersicht', runtime: 'nav.runtime', quellen: 'nav.quellen',
+        extreg: 'nav.extreg', mappings: 'nav.mappings', variablen: 'nav.variablen',
+        watchdogs: 'nav.watchdogs', mqtt: 'nav.mqtt', einspeisemanagement: 'nav.em',
+        bridge: 'nav.bridge', netzwerk: 'nav.netzwerk', testmodus: 'nav.testmodus',
+        update: 'nav.update', debug: 'nav.debug',
+      };
+
+      // Felder des Einspeisemanagement-Status, die als Live-Wert wählbar sind
+      const OV_EM_FELDER = [
+        ['pIstKw', 'ov.em.pIst', 'kW'],
+        ['dargebotKw', 'ov.em.dargebot', 'kW'],
+        ['pKannKw', 'ov.em.pKann', 'kW'],
+        ['pIstWwnKw', 'ov.em.pIstWwn', 'kW'],
+        ['napEinspeisungKw', 'ov.em.nap', 'kW'],
+        ['pLimitKw', 'ov.em.pLimit', 'kW'],
+        ['wrSollwertKw', 'ov.em.wrSoll', 'kW'],
+        ['sollwertObergrenzeKw', 'ov.em.obergrenze', 'kW'],
+        ['direktvermarkterKw', 'ov.em.dv', 'kW'],
+        ['netzbetreiberKw', 'ov.em.nb', 'kW'],
+        ['akku.socProzent', 'ov.em.soc', '%'],
+        ['akku.ladeleistungKw', 'ov.em.laden', 'kW'],
+        ['akku.entladeleistungKw', 'ov.em.entladen', 'kW'],
+        ['akku.wirkleistungKw', 'ov.em.akkuWirk', 'kW'],
+        ['akku.ladbareEnergieKwh', 'ov.em.ladbar', 'kWh'],
+        ['akkuReserveKw', 'ov.em.reserve', 'kW'],
+        ['akkuRestdauerS', 'ov.em.restdauer', 's'],
+        ['akkuFreigabeFaktor', 'ov.em.freigabe', ''],
+      ];
+
+      let DASHBOARD = { liveItems: [], startAnsicht: 'uebersicht' };
+      let OV_DATA = {};          // letzter Datenstand für die Übersicht
+      let _ovPickerOffen = false;
+
+      function showView(id) {
+        if (!VIEWS.includes(id)) id = 'uebersicht';
+        VIEWS.forEach((v) => {
+          const el = document.getElementById('view-' + v);
+          if (el) el.hidden = (v !== id);
+        });
+        document.querySelectorAll('#main-nav .nav-btn').forEach((b) => {
+          b.classList.toggle('active', b.dataset.view === id);
+        });
+        if (id === 'uebersicht') refreshOverview().catch(() => {});
+      }
+
+      function ovPfad(obj, pfad) {
+        return String(pfad).split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
+      }
+
+      function ovZahl(v, stellen = 1) {
+        if (v === null || v === undefined || v === '') return '—';
+        if (typeof v === 'boolean') return v ? t('ov.yes') : t('ov.no');
+        const n = Number(v);
+        return Number.isFinite(n) ? n.toFixed(stellen).replace(/\.0$/, '') : String(v);
+      }
+
+      function ovKarte(titelKey, zeilen) {
+        const rows = zeilen
+          .filter(Boolean)
+          .map(([k, v]) => `<div class="ov-row"><span>${esc(t(k))}</span><span>${esc(v)}</span></div>`)
+          .join('');
+        return `<div class="ov-card"><h3>${esc(t(titelKey))}</h3>${rows}</div>`;
+      }
+
+      async function refreshOverview() {
+        const hole = (url) => fetchJson(url).then((d) => d).catch(() => null);
+        const [rt, em, emCfg, bridge, mqtt, net, vpn, vars, extVals, sources, registers, mappings, wdogs, pubRules] =
+          await Promise.all([
+            hole('/api/runtime/status'), hole('/api/einspeisemanagement/status'),
+            hole('/api/einspeisemanagement'), hole('/api/bridge/server/settings'), hole('/api/mqtt/status'),
+            hole('/api/network/status'), hole('/api/vpn'), hole('/api/variables'),
+            hole('/api/external-registers/values'), hole('/api/sources'), hole('/api/registers'),
+            hole('/api/mappings'), hole('/api/watchdogs'), hole('/api/mqtt-publish-rules'),
+          ]);
+        OV_DATA = { rt, em, emCfg, bridge, mqtt, net, vpn, vars, extVals, sources, registers, mappings, wdogs, pubRules };
+
+        // ── Betriebsparameter ──
+        const karten = [];
+        const rs = (rt && rt.registerStates) || {};
+        const fehlerhaft = Object.values(rs).filter((r) => r && r.error).length;
+        karten.push(ovKarte('ov.card.runtime', [
+          ['ov.p.status', rt ? (rt.running ? t('runtime.running') : t('runtime.stopped')) : '—'],
+          ['ov.p.cycle', rt && rt.cycleCount != null ? String(rt.cycleCount) : '—'],
+          ['ov.p.lastPoll', rt ? fmtTime(rt.lastUpdatedAt) : '—'],
+          ['ov.p.registersRead', String(Object.keys(rs).length)],
+          ['ov.p.readErrors', String(fehlerhaft)],
+        ]));
+        karten.push(ovKarte('ov.card.bestand', [
+          ['ov.p.sources', sources ? String(sources.length) : '—'],
+          ['ov.p.registers', registers ? String(registers.length) : '—'],
+          ['ov.p.variables', vars ? String(vars.length) : '—'],
+          ['ov.p.mappings', mappings ? String(mappings.length) : '—'],
+          ['ov.p.watchdogs', wdogs ? String((wdogs.watchdogs || wdogs).length) : '—'],
+          ['ov.p.pubRules', pubRules ? String(pubRules.length) : '—'],
+        ]));
+        if (bridge) {
+          karten.push(ovKarte('ov.card.bridge', [
+            ['ov.p.enabled', bridge.enabled ? t('ov.yes') : t('ov.no')],
+            ['ov.p.listen', `${bridge.host ?? '—'}:${bridge.port ?? '—'}`],
+          ]));
+        }
+        if (mqtt) {
+          karten.push(ovKarte('ov.card.mqtt', [
+            ['ov.p.status', String(mqtt.status || '—')],
+            ['ov.p.broker', mqtt.host ? `${mqtt.host}:${mqtt.port}` : '—'],
+            ['ov.p.baseTopic', String(mqtt.baseTopic || '—')],
+            ['ov.p.since', fmtTime(mqtt.connectedAt)],
+          ]));
+        }
+        if (net || vpn) {
+          const vpnStatus = vpn && (vpn.state && typeof vpn.state === 'object' ? vpn.state.status : vpn.state);
+          karten.push(ovKarte('ov.card.netzwerk', [
+            net && ['ov.p.iface', String(net.interface || '—')],
+            net && ['ov.p.ip', String(net.cidr || net.address || '—')],
+            net && ['ov.p.gateway', String(net.gateway || '—')],
+            net && ['ov.p.dns', (net.dns || []).join(', ') || '—'],
+            vpn && ['ov.p.vpn', String(vpnStatus || '—')],
+            (vpn && vpn.state && vpn.state.address) ? ['ov.p.vpnIp', String(vpn.state.address)] : null,
+          ].filter(Boolean)));
+        }
+        if (em) {
+          const a = em.akku || {};
+          karten.push(ovKarte('ov.card.em', [
+            ['ov.p.aktuierung', em.aktuierungAktiv ? t('ov.yes') : t('ov.no')],
+            ['ov.p.pLimit', ovZahl(em.pLimitKw) + ' kW'],
+            ['ov.p.wrSoll', ovZahl(em.wrSollwertKw) + ' kW'
+              + (em.sollwertObergrenzeKw != null ? ' / ' + ovZahl(em.sollwertObergrenzeKw) : '')],
+            ['ov.p.drossel', em.drosselAktiv ? t('ov.yes') : t('ov.no')],
+            ['ov.p.pIst', ovZahl(em.pIstKw) + ' kW'],
+            ['ov.p.akku', `${ovZahl(a.socProzent)} % · ${ovZahl(a.ladeleistungKw)}/${ovZahl(a.entladeleistungKw)} kW`],
+            (em.schreibFehler && em.schreibFehler.length)
+              ? ['ov.p.writeErrors', em.schreibFehler.join(', ')] : null,
+            (em.inputsFehlen && em.inputsFehlen.length)
+              ? ['ov.p.inputsMissing', em.inputsFehlen.join(', ')] : null,
+          ].filter(Boolean)));
+        }
+        if (emCfg) {
+          karten.push(ovKarte('ov.card.emCfg', [
+            ['ov.p.pRef', ovZahl(emCfg.pRef100Kw) + ' kW'],
+            ['ov.p.wrRange', `${ovZahl(emCfg.wrSollwertMinKw)} … ${ovZahl(emCfg.wrSollwertMaxKw)} kW`],
+            ['ov.p.regler', `Kp ${ovZahl(emCfg.reglerVerstaerkung, 2)} · ${t('ov.p.deadband')} ${ovZahl(emCfg.totbandKw)} kW · ${t('ov.p.maxStep')} ${ovZahl(emCfg.maxSchrittKw)} kW`],
+            ['ov.p.pInst', ovZahl(emCfg.pInstalliertKw) + ' kW'],
+            ['ov.p.failsafe', ovZahl(emCfg.failsafeSollwertKw) + ' kW'],
+          ]));
+        }
+        document.getElementById('ov-params').innerHTML = karten.join('');
+        document.getElementById('ov-updated').textContent = t('ov.updated') + ' ' + new Date().toLocaleTimeString();
+
+        renderOverviewLive();
+        if (_ovPickerOffen) renderPicker();
+      }
+
+      // Einen ausgewählten Live-Wert auflösen -> {name, quelle, wert, unit, fehler}
+      function ovWert(item) {
+        const { kind, id } = item;
+        if (kind === 'register') {
+          const def = (OV_DATA.registers || []).find((r) => r.id === id);
+          const st = ((OV_DATA.rt && OV_DATA.rt.registerStates) || {})[id];
+          const src = (OV_DATA.sources || []).find((s) => def && s.id === def.sourceId);
+          if (!def) return null;
+          return {
+            name: def.name, quelle: src ? src.name : t('ov.kind.register'),
+            wert: st && !st.error ? st.scaledValue : null,
+            unit: def.unit || '', fehler: st && st.error ? st.error : null,
+          };
+        }
+        if (kind === 'variable') {
+          const v = (OV_DATA.vars || []).find((x) => x.id === id);
+          if (!v) return null;
+          return { name: v.label || v.name, quelle: t('ov.kind.variable'), wert: v.currentValue, unit: v.unit || '', fehler: v.error || null };
+        }
+        if (kind === 'external') {
+          const r = (OV_DATA.extVals || []).find((x) => x.id === id);
+          if (!r) return null;
+          const wert = r.combined32 !== undefined ? r.combined32 : r.value;
+          return { name: r.name, quelle: t('ov.kind.external'), wert, unit: r.unit || '', fehler: null };
+        }
+        if (kind === 'em') {
+          const feld = OV_EM_FELDER.find((f) => f[0] === id);
+          if (!feld || !OV_DATA.em) return null;
+          return { name: t(feld[1]), quelle: t('ov.kind.em'), wert: ovPfad(OV_DATA.em, id), unit: feld[2], fehler: null };
+        }
+        return null;
+      }
+
+      function renderOverviewLive() {
+        const host = document.getElementById('ov-live');
+        const leer = document.getElementById('ov-live-empty');
+        const items = DASHBOARD.liveItems || [];
+        const kacheln = items.map(ovWert).filter(Boolean);
+        document.getElementById('ov-live-count').textContent =
+          kacheln.length ? `${kacheln.length} ${t('ov.live.values')}` : '';
+        leer.hidden = items.length > 0;
+        host.innerHTML = kacheln.map((k) => {
+          const wert = k.fehler ? t('ov.error') : ovZahl(k.wert, 2);
+          return `<div class="ov-tile${k.fehler ? ' t-err' : ''}">
+            <div class="t-name">${esc(k.name)}</div>
+            <div class="t-val">${esc(wert)}${k.unit ? `<span class="t-unit">${esc(k.unit)}</span>` : ''}</div>
+            <div class="t-src">${esc(k.quelle)}</div>
+          </div>`;
+        }).join('');
+      }
+
+      function ovIstGewaehlt(kind, id) {
+        return (DASHBOARD.liveItems || []).some((i) => i.kind === kind && i.id === id);
+      }
+
+      function ovPickGruppe(titelKey, kind, eintraege) {
+        if (!eintraege.length) return '';
+        const boxen = eintraege.map(([id, label, zusatz]) => `
+          <label><input type="checkbox" data-kind="${esc(kind)}" data-id="${esc(id)}"
+            ${ovIstGewaehlt(kind, id) ? 'checked' : ''} />
+            <span>${esc(label)}${zusatz ? ` <span class="hint">${esc(zusatz)}</span>` : ''}</span></label>`).join('');
+        return `<div class="ov-pick-group"><h4>${esc(t(titelKey))}</h4><div class="ov-pick-list">${boxen}</div></div>`;
+      }
+
+      function renderPicker() {
+        const sel = document.getElementById('ov-start-view');
+        sel.innerHTML = VIEWS.map((v) =>
+          `<option value="${v}"${DASHBOARD.startAnsicht === v ? ' selected' : ''}>${esc(t(VIEW_LABEL_KEY[v]))}</option>`).join('');
+
+        const srcName = (sid) => {
+          const s = (OV_DATA.sources || []).find((x) => x.id === sid);
+          return s ? s.name : '';
+        };
+        const regs = (OV_DATA.registers || []).map((r) => [r.id, r.name, srcName(r.sourceId)]);
+        const vars = (OV_DATA.vars || []).map((v) => [v.id, v.label || v.name, v.unit || '']);
+        const ext = (OV_DATA.extVals || []).map((r) => [r.id, r.name, r.unit || '']);
+        const ems = OV_EM_FELDER.map((f) => [f[0], t(f[1]), f[2]]);
+
+        document.getElementById('ov-picker-groups').innerHTML = [
+          ovPickGruppe('ov.pick.em', 'em', ems),
+          ovPickGruppe('ov.pick.registers', 'register', regs),
+          ovPickGruppe('ov.pick.variables', 'variable', vars),
+          ovPickGruppe('ov.pick.external', 'external', ext),
+        ].join('');
+      }
+
+      async function saveDashboard() {
+        const boxen = [...document.querySelectorAll('#ov-picker-groups input[type=checkbox]')];
+        const liveItems = boxen.filter((b) => b.checked)
+          .map((b) => ({ kind: b.dataset.kind, id: b.dataset.id }));
+        const startAnsicht = document.getElementById('ov-start-view').value;
+        const status = document.getElementById('ov-picker-status');
+        try {
+          status.textContent = '…';
+          DASHBOARD = await fetchJson('/api/dashboard', {
+            method: 'PUT', body: JSON.stringify({ liveItems, startAnsicht }),
+          });
+          renderOverviewLive();
+          status.textContent = t('ov.pick.saved');
+          setTimeout(() => { status.textContent = ''; }, 3000);
+        } catch (err) {
+          status.textContent = (err && err.error) || String(err);
+          setDebug(err);
+        }
+      }
+
+      async function loadDashboard() {
+        try { DASHBOARD = await fetchJson('/api/dashboard'); }
+        catch { DASHBOARD = { liveItems: [], startAnsicht: 'uebersicht' }; }
+      }
+
+      document.getElementById('main-nav').addEventListener('click', (e) => {
+        const btn = e.target.closest('.nav-btn');
+        if (btn) showView(btn.dataset.view);
+      });
+      document.getElementById('ov-picker-btn').addEventListener('click', () => {
+        _ovPickerOffen = !_ovPickerOffen;
+        document.getElementById('ov-picker').hidden = !_ovPickerOffen;
+        if (_ovPickerOffen) renderPicker();
+      });
+      document.getElementById('ov-picker-close').addEventListener('click', () => {
+        _ovPickerOffen = false;
+        document.getElementById('ov-picker').hidden = true;
+      });
+      document.getElementById('ov-picker-save').addEventListener('click', saveDashboard);
+
       refresh().catch(setDebug);
       refreshBridgeConfig().catch(setDebug);
       refreshVariables().catch(setDebug);
@@ -3077,6 +3471,13 @@
         fetchJson('/api/einspeisemanagement/status')
           .then(renderEmStatus).catch(() => {});
       }, 2000);
+
+      loadDashboard()
+        .then(() => { showView(DASHBOARD.startAnsicht || 'uebersicht'); })
+        .catch(() => showView('uebersicht'));
+      setInterval(() => {
+        if (!document.getElementById('view-uebersicht').hidden) refreshOverview().catch(() => {});
+      }, 5000);
     </script>
   </body>
 </html>

@@ -18,11 +18,14 @@ const variableService               = require('../services/variableService');
 const einspeisemanagementService    = require('../services/einspeisemanagementService');
 const controlService                = require('../services/controlService');
 const calibrationSamplerService     = require('../services/calibrationSamplerService');
+const dashboardService              = require('../services/dashboardService');
 
 initializeCollections([
   { name: 'sources',    fallback: [] },
   { name: 'registers',  fallback: [] },
   { name: 'profiles',   fallback: [] },
+  { name: dashboardService.COLLECTION,
+    fallback: [dashboardService.createDefaultConfig()] },
   { name: settingsService.COLLECTION,         fallback: [settingsService.createDefaultSettings()] },
   { name: vpnService.VPN_COLLECTION,          fallback: [vpnService.createDefaultConfig()] },
   { name: vpnService.VPN_SECRETS_COLLECTION,  fallback: [vpnService.createDefaultSecrets()] },
