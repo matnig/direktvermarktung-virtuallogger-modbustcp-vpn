@@ -1207,6 +1207,19 @@
             <label><span data-i18n="em.strahlungRef">Reference irradiation (W/m²)</span><input type="number" step="1" name="strahlungReferenzWm2" /></label>
             <label><span data-i18n="em.pDiffus">Bifacial term (kW)</span><input type="number" step="0.1" name="pDiffusKw" /></label>
           </div>
+          <label style="display:flex;align-items:center;gap:8px;">
+            <input type="checkbox" name="lernenAktiv" style="width:auto;margin:0;" />
+            <span data-i18n="em.lernenAktiv">Learn calibration continuously</span>
+          </label>
+          <div id="em-lern-status" class="hint" style="margin-top:6px;"></div>
+          <div class="row">
+            <label><span data-i18n="em.lernHalbwertszeit">Half-life (days)</span><input type="number" step="1" name="lernHalbwertszeitTage" /></label>
+            <label><span data-i18n="em.lernMaxAbw">Max deviation (%)</span><input type="number" step="1" name="lernMaxAbweichungProzent" /></label>
+          </div>
+          <div class="row">
+            <label><span data-i18n="em.lernMinStrahlung">Min irradiance (W/m²)</span><input type="number" step="10" name="lernMinStrahlungWm2" /></label>
+            <label><span data-i18n="em.lernMinBeob">Min observations</span><input type="number" step="50" name="lernMinBeobachtungen" /></label>
+          </div>
           <div class="row">
             <label><span data-i18n="em.wrMin">Setpoint min (kW)</span><input type="number" step="0.1" name="wrSollwertMinKw" /></label>
             <label><span data-i18n="em.wrMax">Setpoint max (kW)</span><input type="number" step="0.1" name="wrSollwertMaxKw" /></label>
@@ -3030,6 +3043,7 @@
         'wrSollwertMinKw', 'wrSollwertMaxKw', 'totbandKw',
         'reglerVerstaerkung', 'maxSchrittKw', 'failsafeSollwertKw',
         'pInstalliertKw', 'strahlungReferenzWm2', 'pDiffusKw',
+        'lernHalbwertszeitTage', 'lernMaxAbweichungProzent', 'lernMinStrahlungWm2', 'lernMinBeobachtungen',
         'akkuFreigabeSocProzent', 'akkuFreigabeUebergangProzent',
         'akkuReserveFaktor', 'ueberschussToleranzMs',
         'akkuReaktionszeitMs', 'akkuMindestLadeleistungKw', 'akkuSperreWiederholungMs',
@@ -3116,6 +3130,7 @@
           }
           form.elements['akkuVorsteuerung'].checked = !!cfg.akkuVorsteuerung;
           form.elements['sollwertGrenzeAusDargebot'].checked = cfg.sollwertGrenzeAusDargebot !== false;
+          form.elements['lernenAktiv'].checked = !!cfg.lernenAktiv;
           form.elements['aktuierungAktiv'].checked = !!cfg.aktuierungAktiv;
 
           // Bindings-Selects füllen
@@ -3157,6 +3172,7 @@
         }
         payload.akkuVorsteuerung = form.elements['akkuVorsteuerung'].checked;
         payload.sollwertGrenzeAusDargebot = form.elements['sollwertGrenzeAusDargebot'].checked;
+        payload.lernenAktiv = form.elements['lernenAktiv'].checked;
         payload.aktuierungAktiv = form.elements['aktuierungAktiv'].checked;
         try {
           await fetchJson('/api/einspeisemanagement', { method: 'PUT', body: JSON.stringify(payload) });
@@ -4072,6 +4088,11 @@
         pInstalliertKw: 'i.pInstalliertKw',
         strahlungReferenzWm2: 'i.strahlungReferenzWm2',
         pDiffusKw: 'i.pDiffusKw',
+        lernenAktiv: 'i.lernenAktiv',
+        lernHalbwertszeitTage: 'i.lernHalbwertszeit',
+        lernMaxAbweichungProzent: 'i.lernMaxAbw',
+        lernMinStrahlungWm2: 'i.lernMinStrahlung',
+        lernMinBeobachtungen: 'i.lernMinBeob',
         dargebotMaxKw: 'i.dargebotMaxKw',
         pKannFaktor: 'i.pKannFaktor',
         // Akku
@@ -4187,6 +4208,26 @@
         fetchJson('/api/einspeisemanagement/status')
           .then(renderEmStatus).catch(() => {});
       }, 5000);
+
+      // Stand der mitlernenden Kalibrierung
+      async function refreshLernStatus() {
+        const el = document.getElementById('em-lern-status');
+        if (!el) return;
+        try {
+          const s = await fetchJson('/api/einspeisemanagement/lernen');
+          if (!s.aktiv) { el.textContent = t('em.lernAus'); return; }
+          if (!s.gelernt) {
+            el.textContent = `${t('em.lernSammelt')} ${s.beobachtungen} — ${s.grund || ''}`;
+            return;
+          }
+          const w = s.wirksam || {};
+          el.textContent = `${t('em.lernStand')}: ${s.gelernt.pInstalliertKw.toFixed(1)} / `
+            + `${s.gelernt.pDiffusKw.toFixed(1)} kW · ${s.beobachtungen} ${t('em.lernBeob')}`
+            + (w.begrenzt ? ` · ${t('em.lernBegrenzt')}` : '');
+        } catch { el.textContent = ''; }
+      }
+      refreshLernStatus();
+      setInterval(refreshLernStatus, 60000);
 
       baueFeldInfos();
       wiLadeConfig().catch(() => {});

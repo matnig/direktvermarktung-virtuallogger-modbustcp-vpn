@@ -22,6 +22,11 @@ function validateEinspeisemanagement(payload = {}) {
   numRange('pInstalliertKw', 0, 100000);
   numRange('strahlungReferenzWm2', 1, 5000);
   numRange('pDiffusKw', 0, 100000);
+  numRange('lernHalbwertszeitTage', 1, 3650);
+  numRange('lernMinStrahlungWm2', 0, 2000);
+  numRange('lernMinLeistungKw', 0, 10000);
+  numRange('lernMinBeobachtungen', 10, 1000000);
+  numRange('lernMaxAbweichungProzent', 0, 200);
   numRange('dargebotMaxKw', 0, 100000);
   numRange('pKannFaktor', 0.001, 1000);
   numRange('totbandKw', 0, 1000);
@@ -53,6 +58,9 @@ function validateEinspeisemanagement(payload = {}) {
 
   if (p.aktuierungAktiv !== undefined && typeof p.aktuierungAktiv !== 'boolean') {
     errors.push('aktuierungAktiv must be a boolean');
+  }
+  if (p.lernenAktiv !== undefined && typeof p.lernenAktiv !== 'boolean') {
+    errors.push('lernenAktiv must be a boolean');
   }
   if (p.sollwertGrenzeAusDargebot !== undefined && typeof p.sollwertGrenzeAusDargebot !== 'boolean') {
     errors.push('sollwertGrenzeAusDargebot must be a boolean');

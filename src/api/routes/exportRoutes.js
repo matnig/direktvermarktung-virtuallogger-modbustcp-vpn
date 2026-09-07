@@ -8,7 +8,7 @@ const router = express.Router();
 const COLLECTIONS = ['sources', 'registers', 'profiles', 'settings', 'vpn',
   'external_registers', 'mappings', 'watchdogs',
   'virtual_variables', 'mqtt_subscriptions', 'mqtt_publish_rules', 'mqtt_config',
-  'dashboard', 'history', 'wirtschaftlichkeit', 'lastgaenge'];
+  'dashboard', 'history', 'wirtschaftlichkeit', 'lastgaenge', 'dargebotLernen'];
 
 router.get('/', (req, res) => {
   const snapshot = {};

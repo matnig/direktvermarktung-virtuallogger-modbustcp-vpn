@@ -18,6 +18,7 @@ const registerRepository         = require('../repositories/registerRepository')
 const externalRegisterRepository = require('../repositories/externalRegisterRepository');
 const externalServerService      = require('./externalServerService');
 const emHaExportService          = require('./emHaExportService');
+const dargebotLernService        = require('./dargebotLernService');
 const ModbusClient               = require('../modbus/modbusClient');
 const { encodeRegisterValue }    = require('../modbus/encodeRegisterValue');
 
@@ -125,7 +126,10 @@ function computeOnce() {
   // VOR dem Regler, weil er daraus seine Sollwert-Obergrenze bildet (Anti-Windup).
   const strOst = readVariable(b.strahlungOstVariableId);
   const strWest = readVariable(b.strahlungWestVariableId);
-  const dargebot = logic.dargebotKw(strOst, strWest, cfg);
+  // Mitlernende Kalibrierung: liefert die wirksamen Koeffizienten. Ohne aktiviertes
+  // Lernen oder ohne ausreichende Datenlage sind das die konfigurierten Werte.
+  const koeff = dargebotLernService.koeffizienten(cfg);
+  const dargebot = logic.dargebotKw(strOst, strWest, { ...cfg, ...koeff });
 
   // --- Regler ---
   let regler = null;
@@ -241,6 +245,7 @@ function computeOnce() {
     akkuReserveKw: logic.akkuReserveKw(akku, cfg),
     akkuFreigabeFaktor: logic.akkuFreigabeFaktor(akku, cfg),
     akkuRestdauerS: logic.akkuRestdauerS(akku, cfg),
+    dargebotKoeffizienten: koeff,
     akkuBetriebsbereit: logic.akkuBetriebsbereit(akku, cfg),
     akkuSperre: regler ? regler.akkuSperre : null,
     sollwertObergrenzeKw: regler ? regler.obergrenzeKw : null,
@@ -254,6 +259,14 @@ function computeOnce() {
     inputsFehlen: fehlt,
     pRef100Kw: cfg.pRef100Kw,
   };
+
+  // Beobachtung fuer die Kalibrierung — nach der Reglerrechnung, damit drosselAktiv
+  // den Zustand DIESES Takts widerspiegelt. Darf den Regler nie stoeren.
+  try {
+    dargebotLernService.beobachte(
+      { strNw: strOst, strSo: strWest, pIstKw, drosselAktiv }, cfg,
+    );
+  } catch (e) { console.warn('[controlService] Lernen:', e.message); }
 
   // Regelgrößen nach Home Assistant spiegeln (nur die Variablen, die es auch gibt).
   // Darf den Regler niemals stören.

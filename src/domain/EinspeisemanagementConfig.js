@@ -28,6 +28,14 @@ class EinspeisemanagementConfig {
     pInstalliertKw = 160,                // installierte PV-Leistung (Module), für Dargebot-Modell
     strahlungReferenzWm2 = 1000,         // Referenzstrahlung für Vollleistung (W/m²)
     pDiffusKw = 0,                       // Zusatzterm auf min(NW,SO) für bifaziale Module (0 = aus)
+    // Mitlernende Kalibrierung: passt die beiden Koeffizienten laufend an, mit
+    // zeitlichem Vergessen, damit sie der Jahreszeit folgen.
+    lernenAktiv = false,
+    lernHalbwertszeitTage = 30,          // wie schnell Altes an Gewicht verliert
+    lernMinStrahlungWm2 = 300,           // darunter wird nicht gelernt
+    lernMinLeistungKw = 10,
+    lernMinBeobachtungen = 500,
+    lernMaxAbweichungProzent = 25,       // Grenze gegenüber den konfigurierten Werten
     dargebotMaxKw = 0,                   // Kappung des Dargebots (0 = keine); real max AC ~105 kW (WR 125, aber SO/NW+flach)
     pKannFaktor = 1,                     // P_kann-Schreibfaktor (10 = 0,1-kW-Auflösung; LOGO-Gain dann /10)
 
@@ -107,6 +115,12 @@ class EinspeisemanagementConfig {
     this.pInstalliertKw = pInstalliertKw;
     this.strahlungReferenzWm2 = strahlungReferenzWm2;
     this.pDiffusKw = pDiffusKw;
+    this.lernenAktiv = lernenAktiv;
+    this.lernHalbwertszeitTage = lernHalbwertszeitTage;
+    this.lernMinStrahlungWm2 = lernMinStrahlungWm2;
+    this.lernMinLeistungKw = lernMinLeistungKw;
+    this.lernMinBeobachtungen = lernMinBeobachtungen;
+    this.lernMaxAbweichungProzent = lernMaxAbweichungProzent;
     this.dargebotMaxKw = dargebotMaxKw;
     this.pKannFaktor = pKannFaktor;
     this.aktuierungAktiv = aktuierungAktiv;

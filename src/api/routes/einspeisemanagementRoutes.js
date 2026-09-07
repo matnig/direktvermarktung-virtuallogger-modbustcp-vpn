@@ -1,6 +1,7 @@
 const express = require('express');
 const einspeisemanagementService = require('../../services/einspeisemanagementService');
 const emHaExportService          = require('../../services/emHaExportService');
+const dargebotLernService        = require('../../services/dargebotLernService');
 const controlService = require('../../services/controlService');
 const { validateEinspeisemanagement } = require('../../validation/einspeisemanagementValidation');
 
@@ -22,6 +23,17 @@ router.put('/', (req, res) => {
     return res.status(400).json({ error: 'Validation failed', details: errors });
   }
   return res.json(einspeisemanagementService.updateConfig(payload));
+});
+
+// --- Mitlernende Dargebot-Kalibrierung ---
+router.get('/lernen', (req, res) => {
+  res.json(dargebotLernService.status(einspeisemanagementService.getConfig()));
+});
+
+// Kein DELETE (siehe historyRoutes): Zuruecksetzen als POST.
+router.post('/lernen/zuruecksetzen', (req, res) => {
+  dargebotLernService.zuruecksetzen();
+  res.json({ zurueckgesetzt: true });
 });
 
 // --- Home-Assistant-Export der Regelgrößen ---

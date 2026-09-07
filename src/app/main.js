@@ -19,6 +19,7 @@ const einspeisemanagementService    = require('../services/einspeisemanagementSe
 const controlService                = require('../services/controlService');
 const calibrationSamplerService     = require('../services/calibrationSamplerService');
 const dashboardService              = require('../services/dashboardService');
+const dargebotLernService           = require('../services/dargebotLernService');
 const historyService                = require('../services/historyService');
 const wirtschaftlichkeitService     = require('../services/wirtschaftlichkeitService');
 const lastgangService               = require('../services/lastgangService');
@@ -27,6 +28,7 @@ initializeCollections([
   { name: 'sources',    fallback: [] },
   { name: 'registers',  fallback: [] },
   { name: 'profiles',   fallback: [] },
+  { name: dargebotLernService.COLLECTION, fallback: [{}] },
   { name: dashboardService.COLLECTION,
     fallback: [dashboardService.createDefaultConfig()] },
   { name: historyService.COLLECTION,
@@ -71,6 +73,7 @@ app.listen(PORT, HOST, async () => {
 for (const sig of ['SIGTERM', 'SIGINT']) {
   process.on(sig, () => {
     try { historyService.flush(); } catch (e) { console.warn('[history] Flush beim Beenden:', e.message); }
+    try { dargebotLernService.sichern(true); } catch (e) { console.warn('[dargebotLernen] Sichern beim Beenden:', e.message); }
     process.exit(0);
   });
 }
