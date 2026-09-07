@@ -3508,6 +3508,20 @@
           ['ov.p.registersRead', String(Object.keys(rs).length)],
           ['ov.p.readErrors', String(fehlerhaft)],
         ]));
+        // Speicherplatz: auf einem Dauerlauf-Geraet der Posten, der unbemerkt volllaeuft
+        if (d.speicher) {
+          const mb = (v) => (v == null ? '—' : (v / 1e6).toFixed(1) + ' MB');
+          const gb = (v) => (v == null ? '—' : (v / 1e9).toFixed(1) + ' GB');
+          const sp = d.speicher;
+          karten.push(ovKarte('ov.card.speicher', [
+            ['ov.p.datenGroesse', mb(sp.datenBytes)],
+            ['ov.p.verlaufMax', mb(sp.verlaufMaxBytes)],
+            ['ov.p.frei', `${gb(sp.freiBytes)} / ${gb(sp.gesamtBytes)}`],
+            ['ov.p.belegt', sp.belegtProzent == null ? '—' : sp.belegtProzent.toFixed(0) + ' %'],
+            sp.verwaisteBytes ? ['ov.p.verwaist', mb(sp.verwaisteBytes)] : null,
+          ].filter(Boolean)));
+        }
+
         const z = (v) => (v == null ? '—' : String(v));
         karten.push(ovKarte('ov.card.bestand', [
           ['ov.p.sources', z(bestand.quellen)],

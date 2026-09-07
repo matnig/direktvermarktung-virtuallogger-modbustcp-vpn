@@ -11,6 +11,7 @@ const networkService             = require('../../services/networkService');
 const vpnService                 = require('../../services/vpnService');
 const variableService            = require('../../services/variableService');
 const externalRegisterValues     = require('../../services/externalRegisterValues');
+const speicherplatzService       = require('../../services/speicherplatzService');
 const sourceRepository           = require('../../repositories/sourceRepository');
 const registerRepository         = require('../../repositories/registerRepository');
 const mappingRepository          = require('../../repositories/mappingRepository');
@@ -52,6 +53,17 @@ router.get('/', (req, res, next) => {
         ...v, ...(variableService.getVariableState(v.id) || {}),
       })), []),
       externeWerte: sicher(() => externalRegisterValues.listValues(), []),
+      speicher: sicher(() => {
+        const b = speicherplatzService.bericht();
+        return {
+          datenBytes: b.gesamt.bytes,
+          freiBytes: b.platte ? b.platte.freiBytes : null,
+          gesamtBytes: b.platte ? b.platte.gesamtBytes : null,
+          belegtProzent: b.platte ? b.platte.belegtProzent : null,
+          verwaisteBytes: b.verwaisteBytes,
+          verlaufMaxBytes: b.verlaufProgose ? b.verlaufProgose.maxBytes : null,
+        };
+      }, null),
       bestand: sicher(() => ({
         quellen: sourceRepository.list().length,
         register: registerRepository.list().length,
