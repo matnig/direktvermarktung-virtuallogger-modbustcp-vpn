@@ -558,3 +558,34 @@ test('wirklich voller Akku: Vorsteuerung greift weiterhin', () => {
   // Erschoepfung 1-20/50=0,6 x 30 = 18 -> vorausschauend drosseln, bevor es ins Netz geht
   assert.ok(effektiveEinspeisungKw(0, voll, c) > 1);
 });
+
+// --- Dargebot mit bifazialem Zusatzterm ---
+
+test('pDiffusKw = 0 ergibt exakt das fruehere Verhalten', () => {
+  const c = cfg({ pInstalliertKw: 129, strahlungReferenzWm2: 1000, pDiffusKw: 0 });
+  assert.ok(Math.abs(dargebotKw(600, 800, c) - 700 * 0.129) < 1e-9);
+});
+
+test('bifazialer Term wirkt ueber den kleineren Messwert', () => {
+  const c = cfg({ pInstalliertKw: 79.1, strahlungReferenzWm2: 1000, pDiffusKw: 57.45, dargebotMaxKw: 0 });
+  // Mittel 700, Minimum 600
+  const erwartet = 700 * 0.0791 + 600 * 0.05745;
+  assert.ok(Math.abs(dargebotKw(600, 800, c) - erwartet) < 1e-9);
+});
+
+test('das Modell ist symmetrisch in beiden Dachhaelften', () => {
+  const c = cfg({ pInstalliertKw: 79.1, strahlungReferenzWm2: 1000, pDiffusKw: 57.45, dargebotMaxKw: 0 });
+  // Genau das kann eine freie Zwei-Sensor-Gewichtung nicht: sie sagte fuer diese
+  // beiden spiegelbildlichen Faelle 95 gegen 55 kW voraus.
+  assert.strictEqual(dargebotKw(200, 900, c), dargebotKw(900, 200, c));
+});
+
+test('bei ausgeglichener Strahlung entspricht es der Summe beider Faktoren', () => {
+  const c = cfg({ pInstalliertKw: 79.1, strahlungReferenzWm2: 1000, pDiffusKw: 57.45, dargebotMaxKw: 0 });
+  assert.ok(Math.abs(dargebotKw(1000, 1000, c) - (79.1 + 57.45)) < 1e-9);
+});
+
+test('Kappung wirkt auch mit dem Zusatzterm', () => {
+  const c = cfg({ pInstalliertKw: 79.1, strahlungReferenzWm2: 1000, pDiffusKw: 57.45, dargebotMaxKw: 105 });
+  assert.strictEqual(dargebotKw(1000, 1000, c), 105);
+});

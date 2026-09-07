@@ -1205,6 +1205,7 @@
           <div class="row">
             <label><span data-i18n="em.pInstalliert">Installed PV power (kW)</span><input type="number" step="0.1" name="pInstalliertKw" /></label>
             <label><span data-i18n="em.strahlungRef">Reference irradiation (W/m²)</span><input type="number" step="1" name="strahlungReferenzWm2" /></label>
+            <label><span data-i18n="em.pDiffus">Bifacial term (kW)</span><input type="number" step="0.1" name="pDiffusKw" /></label>
           </div>
           <div class="row">
             <label><span data-i18n="em.wrMin">Setpoint min (kW)</span><input type="number" step="0.1" name="wrSollwertMinKw" /></label>
@@ -3028,7 +3029,7 @@
         'pRef100Kw', 'akkuMaxLadeleistungKw', 'aqSkalaMaxKw',
         'wrSollwertMinKw', 'wrSollwertMaxKw', 'totbandKw',
         'reglerVerstaerkung', 'maxSchrittKw', 'failsafeSollwertKw',
-        'pInstalliertKw', 'strahlungReferenzWm2',
+        'pInstalliertKw', 'strahlungReferenzWm2', 'pDiffusKw',
         'akkuFreigabeSocProzent', 'akkuFreigabeUebergangProzent',
         'akkuReserveFaktor', 'ueberschussToleranzMs',
         'akkuReaktionszeitMs', 'akkuMindestLadeleistungKw', 'akkuSperreWiederholungMs',
@@ -4070,6 +4071,7 @@
         // Dargebot
         pInstalliertKw: 'i.pInstalliertKw',
         strahlungReferenzWm2: 'i.strahlungReferenzWm2',
+        pDiffusKw: 'i.pDiffusKw',
         dargebotMaxKw: 'i.dargebotMaxKw',
         pKannFaktor: 'i.pKannFaktor',
         // Akku

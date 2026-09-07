@@ -374,13 +374,23 @@ function reglerSchritt({ napEinspeisungKw, pLimitKw: limit, wrSollwertAktuellKw,
 // --- 5) Dargebot (theoretisch mögliche Leistung) aus Strahlung Ost/West ---
 // Lineares Modell: P_kann = (mittlere Strahlung / Referenzstrahlung) × installierte Leistung.
 // GESCHÄTZT — bei realen Tagesdaten kalibrieren. Gibt null, wenn keine Strahlung vorliegt.
+// Zweiter Term für bifaziale Module: sie erzeugen auch aus Strahlung, die kein
+// Fühler misst — die Fühler liegen in der Modulebene und sehen nur die Vorderseite.
+// Der kleinere der beiden Messwerte ist ein brauchbarer Stellvertreter dafür: die
+// sonnenabgewandte Dachhälfte sieht überwiegend Diffusstrahlung, und genau aus dem
+// diffusen Umfeld speist sich der Rückseitengewinn. Der Term ist symmetrisch in
+// beiden Dächern, im Gegensatz zu einer freien Zwei-Sensor-Gewichtung, die bei
+// spiegelbildlicher Einstrahlung Unsinn liefert.
+// pDiffusKw = 0 ergibt exakt das frühere Verhalten.
 function dargebotKw(strahlungOstWm2, strahlungWestWm2, config) {
   const ref = Number(config.strahlungReferenzWm2) || 1000;
   const pInst = Number(config.pInstalliertKw) || 0;
+  const pDiffus = Number(config.pDiffusKw) || 0;
   const vals = [strahlungOstWm2, strahlungWestWm2].filter(isNum);
   if (!vals.length || ref <= 0) return null;
   const mittel = vals.reduce((a, b) => a + b, 0) / vals.length;
-  let dg = Math.max(0, (mittel / ref) * pInst);
+  const minimum = Math.min(...vals);
+  let dg = Math.max(0, (mittel / ref) * pInst + (minimum / ref) * pDiffus);
   const cap = Number(config.dargebotMaxKw) || 0;
   if (cap > 0) dg = Math.min(dg, cap); // reale Max-AC-Leistung (Kappung)
   return dg;
